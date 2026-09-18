@@ -1,0 +1,17 @@
+---
+description: Base do Catálogo Digital — CLAUDE.md, decisões travadas, spec antes de código.
+alwaysApply: true
+---
+
+# Catálogo Digital
+
+- Leia `CLAUDE.md` no início de qualquer tarefa.
+- Memória de produto: `docs/superpowers/00-contexto-e-decisoes.md`.
+- Perguntas já respondidas em `docs/superpowers/02-respostas-das-perguntas-abertas.md`.
+- Não há app ainda. `docs/misc/` é histórico, não código-fonte.
+- Spec 1 aprovada. Plano em `docs/superpowers/plans/2026-09-18-fundacao-e-vitrine.md`. Trabalhar em `local`.
+- Reset de Supabase só no projeto de desenvolvimento. Jamais no banco de um cliente.
+- Sem checkout, sem `tenant_id`, sem inventar a Fase 0.
+- Stack: Next.js 16, pnpm, Supabase, Vercel, shadcn no admin, vitrine autoral.
+- Docs de lib: Context7. Tarefa multi-passo: sequentialthinking.
+- Commits só com pedido explícito. Sem secrets no git.

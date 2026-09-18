@@ -1,0 +1,94 @@
+{
+  "$schema": "./branding.schema.json",
+  "_comment": "Fallback padrão (Equilibrium Tecnologia). O cliente sobrescreve chaves no admin; chaves não sobrescritas usam este arquivo.",
+  "store": {
+    "name": "Equilibrium Tecnologia",
+    "tagline": "Catálogo digital de moda feminina — tricô, malhas, jeans e plus size",
+    "logo_url": "https://placehold.co/240x80/2d3a4a/f4f6f8?text=Equilibrium",
+    "favicon_url": "https://placehold.co/64x64/2d3a4a/f4f6f8?text=EQ"
+  },
+  "theme": {
+    "primary_color": "#2D3A4A",
+    "secondary_color": "#C9A66B",
+    "background_color": "#F7F5F2",
+    "text_color": "#2B2B2B",
+    "accent_color": "#C9A66B",
+    "font_heading": "Fraunces, serif",
+    "font_body": "Inter, sans-serif",
+    "border_radius": "12px",
+    "products_per_row": {
+      "mobile": 2,
+      "desktop": 4
+    },
+    "dark": {
+      "_comment": "Opcional. Se ausente, o tema escuro é derivado automaticamente do tema claro.",
+      "primary_color": "#C9A66B",
+      "secondary_color": "#2D3A4A",
+      "background_color": "#1A2027",
+      "surface_color": "#232B34",
+      "text_color": "#EDEAE4",
+      "accent_color": "#C9A66B"
+    },
+    "dark_mode": {
+      "enabled": true,
+      "default": "auto",
+      "show_toggle": true
+    }
+  },
+  "hero": {
+    "enabled": true,
+    "image_url": "https://placehold.co/1600x900/3a4a5e/f4f6f8?text=Catálogo+Digital",
+    "title": "Nosso Catálogo",
+    "subtitle": "Tricô, malhas, jeans e moda plus size",
+    "cta_label": "Ver novidades",
+    "cta_link": "/?ordenar=novidades"
+  },
+  "sections": {
+    "new_arrivals": {
+      "title": "Novidades",
+      "enabled": true,
+      "limit": 8
+    },
+    "featured": {
+      "title": "Destaques",
+      "enabled": true,
+      "limit": 8
+    },
+    "on_sale": {
+      "title": "Promoções",
+      "enabled": true,
+      "limit": 8
+    },
+    "campaigns": {
+      "title": "Campanhas",
+      "enabled": true
+    },
+    "categories": {
+      "title": "Categorias",
+      "enabled": true
+    }
+  },
+  "empty_states": {
+    "no_products": "Estamos preparando novidades. Volte em breve!",
+    "no_results": "Nenhum produto com esses filtros. Ajuste a busca."
+  },
+  "share": {
+    "og_home_image": "https://placehold.co/1200x630/2D3A4A/ffffff?text=Catálogo+Digital",
+    "og_category_fallback": "https://placehold.co/1200x630/C9A66B/2B2B2B?text=Coleção",
+    "share_message": "Olá! Amei esse catálogo e acho que você vai gostar:"
+  },
+  "contact": {
+    "whatsapp_message_default": "Olá! Vi o catálogo e quero saber mais sobre: {product_name} {product_url}"
+  },
+  "behavior": {
+    "default_sort": "novidades",
+    "sort_options": [
+      "novidades",
+      "preco_asc",
+      "preco_desc",
+      "destaque"
+    ],
+    "show_prices": true,
+    "currency": "BRL"
+  }
+}
