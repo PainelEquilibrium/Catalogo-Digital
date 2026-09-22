@@ -1,7 +1,7 @@
 # Spec: Fundação + vitrine pública
 
 **Data:** 18/09/2026  
-**Status:** aprovada (18/09/2026)  
+**Status:** aprovada (18/09/2026); emenda 19/09/2026 — Prisma ORM, env enxuto  
 **Fatia:** spec 1 de N (admin = spec 2)  
 **Base:** `docs/superpowers/00-contexto-e-decisoes.md` e `02-respostas-das-perguntas-abertas.md`
 
@@ -15,7 +15,7 @@ Entregar um catálogo **público** que a atendente consiga mandar no WhatsApp e 
 
 A loja ainda **não** cadastra nada pela UI. Os dados vêm de **seed**. O cadastro real é o spec de admin.
 
-**Sucesso:** com `pnpm install`, env local, `supabase start` + seed e `pnpm dev`, a vitrine funciona ponta a ponta sem abrir o painel Supabase no dia a dia (exceto colar as chaves uma vez).
+**Sucesso:** com `pnpm install`, `.env` do projeto DEV, `prisma migrate` + seed e `pnpm dev`, a vitrine funciona ponta a ponta. Reset de banco **só** no Supabase de desenvolvimento.
 
 ---
 
@@ -39,11 +39,11 @@ Herdar depois: o schema, os módulos de domínio, o pipeline `sharp` e as rotas 
 
 ### 3.1 Como a vitrine lê dados
 
-|                   | Abordagem                                                                                                                                                                     | Prós                                               | Contras                                                            |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------ |
-| **A (escolhida)** | Server Components + repositórios no servidor (cliente Supabase **anon**). Primeira página HTML completa. “Carregar mais” = `GET /api/vitrine/produtos` com os mesmos filtros. | SEO, LCP, RLS no banco, um só critério de consulta | Dois callers (RSC + route) precisam compartilhar a função de query |
-| B                 | Tudo no client (`useEffect` + PostgREST)                                                                                                                                      | Simples de prototipar                              | SEO fraco, flicker, filtros mais fáceis de divergir                |
-| C                 | BFF GraphQL / tRPC para cada tela                                                                                                                                             | Contrato único                                     | Overkill para este volume                                          |
+|                   | Abordagem                                                                                                                                                                     | Prós                                                       | Contras                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **A (escolhida)** | Server Components + **Prisma** no servidor (`DATABASE_URL` pooler). Primeira página HTML completa. “Carregar mais” = `GET /api/vitrine/produtos` com a mesma `queryProducts`. | Tipagem, um critério de consulta, sem PostgREST na vitrine | Prisma no role `postgres` **bypassa RLS** — filtro published/deleted é obrigatório em toda query |
+| B                 | Tudo no client (`useEffect` + PostgREST)                                                                                                                                      | Simples de prototipar                                      | SEO fraco, flicker, filtros mais fáceis de divergir                                              |
+| C                 | BFF GraphQL / tRPC para cada tela                                                                                                                                             | Contrato único                                             | Overkill para este volume                                                                        |
 
 **Query única:** `src/lib/catalog/query-products.ts` usada pela page e pela route. Sem duplicar SQL.
 
@@ -67,7 +67,7 @@ PK `uuid` com `gen_random_uuid()`. URL pública é sempre **slug**. Catálogo < 
 Browser
   → Next.js 16 (App Router, src/app)  RSC + poucos client components
        → resolveBranding()     banco store_settings ⊕ branding.config.json ⊕ fallback
-       → queryProducts()       Postgres via supabase-js anon + RLS
+       → queryProducts()       Postgres via Prisma (servidor)
        → resolveWhatsapp()     store_settings.contact ⊕ WHATSAPP_NUMBER
        → legalPages()          store_settings.legal ⊕ src/content/legal
   → GTM só depois do Consent Mode v2 (default denied)
@@ -79,18 +79,18 @@ Supabase (1 projeto = 1 loja)
 
 **Unidades (uma responsabilidade cada):**
 
-| Unidade                         | Faz                                                     | Depende de              | Consumidores                   |
-| ------------------------------- | ------------------------------------------------------- | ----------------------- | ------------------------------ |
-| `domain/branding`               | Tipo Zod do JSON, merge profundo, derivar tema escuro   | —                       | `lib/branding`, testes         |
-| `lib/branding`                  | Ler settings + arquivo + fallback; CSS vars             | supabase, JSON          | `layout`, metadata             |
-| `domain/price`                  | `formatProductPrice`                                    | branding.behavior       | card, produto, WhatsApp        |
-| `domain/catalog-query`          | Parse/serialize query string (filtros, sort, q, cursor) | fields_schema           | pages, API, testes             |
-| `lib/catalog`                   | Queries de categoria/produto/imagens                    | supabase, catalog-query | pages, API                     |
-| `lib/images`                    | Specs das variantes + `processImageBuffer`              | sharp                   | testes; spec 2 = upload        |
-| `lib/whatsapp`                  | Montar `wa.me` + mensagem                               | price, branding, env    | CTA                            |
-| `lib/flags`                     | `isEnabled(name)` ← `flags.config.ts` ⊕ `FLAGS_JSON`    | env                     | futuro; neste spec só o módulo |
-| `lib/consent` + `lib/analytics` | Consent Mode v2, dataLayer, UTMs                        | —                       | layout, CTA, banner            |
-| `lib/copy`                      | Strings pt-BR da vitrine                                | —                       | UI                             |
+| Unidade                         | Faz                                                     | Depende de            | Consumidores                   |
+| ------------------------------- | ------------------------------------------------------- | --------------------- | ------------------------------ |
+| `domain/branding`               | Tipo Zod do JSON, merge profundo, derivar tema escuro   | —                     | `lib/branding`, testes         |
+| `lib/branding`                  | Ler settings + arquivo + fallback; CSS vars             | Prisma, JSON          | `layout`, metadata             |
+| `domain/price`                  | `formatProductPrice`                                    | branding.behavior     | card, produto, WhatsApp        |
+| `domain/catalog-query`          | Parse/serialize query string (filtros, sort, q, cursor) | fields_schema         | pages, API, testes             |
+| `lib/catalog`                   | Queries de categoria/produto/imagens                    | Prisma, catalog-query | pages, API                     |
+| `lib/images`                    | Specs das variantes + `processImageBuffer`              | sharp                 | testes; spec 2 = upload        |
+| `lib/whatsapp`                  | Montar `wa.me` + mensagem                               | price, branding, env  | CTA                            |
+| `lib/flags`                     | `isEnabled(name)` ← `flags.config.ts` ⊕ `FLAGS_JSON`    | env                   | futuro; neste spec só o módulo |
+| `lib/consent` + `lib/analytics` | Consent Mode v2, dataLayer, UTMs                        | —                     | layout, CTA, banner            |
+| `lib/copy`                      | Strings pt-BR da vitrine                                | —                     | UI                             |
 
 Falha do banco na **leitura** de branding ou legais: servir o arquivo/fallback, **não** 500 na home. Falha ao listar produtos: empty state + log servidor, não tela branca. Produto/coleção inexistente ou não publicado: `notFound()`.
 
@@ -104,10 +104,11 @@ Pinado na implementação pelo que o `create-next-app` e o CLI do Supabase vigen
 - **pnpm** (`pnpm-lock.yaml` único)
 - ESLint (`eslint-config-next`)
 - shadcn/ui inicializado: neste spec só o que a vitrine precisar de genérico (`button` se necessário, `dialog` zoom, `sonner` “link copiado”). Visual da vitrine **não** é dashboard shadcn
-- `@supabase/supabase-js` + `@supabase/ssr` — vitrine usa **apenas** a chave pública (anon ou publishable, o nome do painel no dia da implementação)
+- **Prisma ORM** (versão vigente via Context7) — único acesso a tabelas na vitrine. `DATABASE_URL` (pooler) no Client; `DIRECT_URL` no CLI/`migrate`. Singleton em `src/lib/prisma/client.ts`. Nunca no browser.
 - `sharp`, `zod`
 - Vitest + Playwright
-- `supabase/` com `config.toml` local: **signup desabilitado**
+- Host de dados: **projeto Supabase de desenvolvimento** (Auth desligado para signup; Storage bucket criado por SQL). Sem `@supabase/supabase-js` neste spec (spec 2 pode reintroduzir para Auth/upload).
+- Schema: `prisma/schema.prisma` + `prisma migrate`. RLS, `unaccent`, trigger de `profiles` e bucket: SQL na **mesma** pasta `prisma/migrations` (migration extra), não um segundo histórico em `supabase/migrations`.
 
 Scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `test:e2e`, `check` (lint + typecheck + test).
 
@@ -121,6 +122,10 @@ Scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `test:e2e`, `check` (lint 
 branding.config.json
 flags.config.ts
 .env.example
+prisma/
+  schema.prisma
+  migrations/
+  seed.ts
 src/
   app/
     layout.tsx                    # html lang=pt-BR, CSS vars, consent, GTM, skip-link
@@ -150,7 +155,7 @@ src/
     product.ts
     legal.ts
   lib/
-    supabase/server.ts            # createServerClient — leitura anon (RSC + route handlers)
+    prisma/client.ts              # PrismaClient singleton (servidor)
     branding/
     catalog/
     images/
@@ -160,18 +165,19 @@ src/
     consent/
     copy/pt-br.ts
   config/site.ts                  # SITE_URL helper
-supabase/
-  migrations/                     # uma ou poucas migrations desta fatia
-  seed.sql
 e2e/
   vitrine.spec.ts
 ```
 
-Sem `src/lib/supabase/browser.ts` neste spec: o “carregar mais” chama a API própria via `fetch`. Arquivos e pastas: `kebab-case`. Componentes: PascalCase. Sem `src/services` (não há lead/CRM).
+Sem cliente Supabase JS neste spec. Sem `src/services`. Arquivos kebab-case. Componentes PascalCase.
 
 ---
 
-## 7. Schema (redesenhado; leftover não é canônico)
+## 7. Schema (Prisma + SQL de defesa; leftover não é canônico)
+
+Modelos em `prisma/schema.prisma`. `prisma migrate` aplica tabelas. Uma migration SQL irmã cria extensões, checks/índices que o Prisma não expressa bem, RLS, trigger `auth.users` → `profiles`, bucket `product-images`.
+
+**Prisma bypassa RLS** (conexão típica do role `postgres`). Toda query da vitrine **repete** o predicado público (`status = published`, `deletedAt == null`, categoria ativa). RLS continua ligado para a Data API / chave anon não vazar rascunhos se alguém usar PostgREST.
 
 Extensões: `pgcrypto` (ou o default do projeto para `gen_random_uuid`), `unaccent`.
 
@@ -286,9 +292,7 @@ RLS **ligado** em todas as tabelas acima. Sem policy = negado.
 
 Storage: bucket `product-images`, leitura pública em `variants/**`. Upload autenticado = spec 2. Neste spec o bucket pode ficar vazio.
 
-Auth: `enable_signup = false` no `config.toml` local. Documentar o equivalente no projeto hospedado.
-
-`service_role` não entra no runtime da vitrine. Só CLI/`seed` se o fluxo local exigir.
+Auth: signup desligado no projeto DEV (painel Authentication). Sem `service_role` no runtime. Seed via `prisma db seed`.
 
 ---
 
@@ -401,7 +405,7 @@ API `GET /api/vitrine/produtos`:
 - 400 se slug/params inválidos; 404 se categoria inexistente
 - Mesmo shape de card da home (id, slug, name, price, image, badges)
 
-Não expor `draft` nem `deleted`. A API usa o mesmo cliente anon; RLS é a rede de segurança.
+Não expor `draft` nem `deleted`. A API usa Prisma com os **mesmos** predicados de `queryProducts`. RLS é rede extra contra PostgREST, não o filtro da vitrine.
 
 ---
 
@@ -489,24 +493,33 @@ Vitrine: `<Image>` do Next com `card_url` / `detail_url`, width/height quando ho
 - `store_settings` vazio
 - Copy do seed pode ser moda feminina (primeiro cliente); o **JSON padrão** permanece genérico
 
-README: `pnpm install` → copiar `.env.example` → `supabase start` → `supabase db reset` → `pnpm dev`.
+README: `pnpm install` → preencher `.env` (só as chaves da §16) → `pnpm prisma migrate deploy` no **DEV** → `pnpm prisma db seed` → `pnpm dev`. Jamais migrate/reset em banco de cliente.
 
 ---
 
 ## 16. Variáveis de ambiente
 
-`.env.example` **sem valores secretos**, cada linha comentada:
+`.env.example` **sem valores**. A vitrine precisa só disto:
 
 ```text
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=          # nome exato: o que o painel chamar de chave pública
-WHATSAPP_NUMBER=                         # só dígitos, fallback
+# Prisma — pooler (app) e conexão direta (migrate / studio)
+DATABASE_URL=
+DIRECT_URL=
+
+# Site
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_GTM_ID=                      # vazio = sem container
+WHATSAPP_NUMBER=
+NEXT_PUBLIC_GTM_ID=
 FLAGS_JSON=
+
+# Opcional: host do Storage para next/image (spec 2). Sem uso obrigatório agora.
+NEXT_PUBLIC_SUPABASE_URL=
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` **não** é necessária para rodar a vitrine. Se o seed via SQL local não precisar dela, **não colocar** no example. Se um script futuro precisar, comentário: “nunca NEXT_PUBLIC, nunca no browser”.
+**Não usar na vitrine (pode apagar do `.env`):**  
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_PASSWORD`, `SUPABASE_PROJECT_ID`, `SUPABASE_DIRECT_URL` (se for cópia de `DIRECT_URL`).
+
+Senha do banco vive **dentro** de `DATABASE_URL`/`DIRECT_URL`. Nunca em arquivo versionado.
 
 ---
 

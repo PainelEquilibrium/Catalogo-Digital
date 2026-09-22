@@ -1,7 +1,7 @@
 # Contexto e decisões — Catálogo Digital
 
-**Data:** 18/09/2026  
-**Status:** spec 1 **aprovada**. Plano: `docs/superpowers/plans/2026-09-18-fundacao-e-vitrine.md`. Implementação na branch `local`.
+**Data:** 18/09/2026 (recorte de specs atualizado 21/09/2026)  
+**Status:** spec 1 **aprovada e implementada** (branch `local`). Spec 2 **aprovada:** `docs/superpowers/specs/2026-09-21-admin-catalogo-design.md`. Plano: `docs/superpowers/plans/2026-09-22-admin-catalogo.md`.
 
 **Supabase:** o projeto de **desenvolvimento** pode sofrer `db reset`. **Jamais** resetar banco de cliente.  
 **Fontes:** `docs/misc/chat-01.md`, leftovers em `docs/misc/`, respostas em `02-respostas-das-perguntas-abertas.md`.
@@ -132,7 +132,7 @@ main            produto global (JSON Equilibrium)
 | Admin | **shadcn/ui** + Zod + React Hook Form |
 | Vitrine | Layout/CSS **próprios** sobre tokens do branding. shadcn só em controles genéricos (dialog, input, toast) |
 | Pacotes | **pnpm** (um lockfile; sem npm/yarn misturado) |
-| Banco / Auth / Storage | Supabase (1 projeto por cliente), RLS por papel `owner` / `manager` |
+| Banco / Auth / Storage | Prisma → Postgres no Supabase (1 projeto por cliente). RLS de defesa; vitrine filtra no Prisma |
 | Imagens | `sharp` no Next → WebP |
 | Host | **Vercel**, 1 projeto por branch `cliente-*` |
 | Testes | Vitest (domínio) + Playwright (fluxos críticos da vitrine, filtro/URL, WhatsApp, login admin quando existir) |
@@ -158,11 +158,12 @@ Tokens (cores, fonte, raio, colunas) vêm do branding resolvido. A vitrine não 
 
 | Spec | Entra | Não entra |
 | --- | --- | --- |
-| **1. Fundação + vitrine** (spec escrito) | Ver `docs/superpowers/specs/2026-09-18-fundacao-e-vitrine-design.md` | CRUD admin, convite, editor de branding/legais, campanhas, restore, HEIC, `proxy.ts` |
-| **2. Admin** (seguinte) | Login, produtos/categorias/imagens, schema de campos, usuários no painel, branding/legais editáveis, `PoweredByEquilibrium` | Restore em 2 cliques |
-| **3+** | Campanhas, auditoria visível + restore, playbook de provisionamento | Checkout, estoque, i18n |
+| **1. Fundação + vitrine** | `docs/superpowers/specs/2026-09-18-fundacao-e-vitrine-design.md` | CRUD admin, convite, editor de branding/legais, campanhas, restore, HEIC |
+| **2. Admin — login e catálogo** | Login, recuperação de senha, chrome, CRUD categorias (editor de campos), produtos, imagens, lixeira simples, upload `sharp`, `proxy.ts` de sessão, selo no login/admin | Convite/usuárias, editor branding/legais, campanhas, audit/restore 2 cliques, purge 30 dias, estilo do admin |
+| **2b. Admin — operação** | Convite e gestão de usuárias; editor de branding e legais; diferença owner/manager nas telas sensíveis | Restore em 2 cliques |
+| **3+** | Campanhas, auditoria visível + restore, playbook de provisionamento, client-flags de estilo (caso a caso) | Checkout, estoque, i18n |
 
-Sem admin no spec 1, a vitrine nasce com **seed** (produtos publicados de exemplo). Cadastro real é o spec 2.
+A vitrine da spec 1 nasceu com **seed**. Cadastro real começa na spec 2. Estilo customizado do admin = flag por cliente, não default.
 
 ---
 

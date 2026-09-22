@@ -1,0 +1,114 @@
+"use server";
+
+import { requireStaff } from "@/lib/auth/server";
+import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
+import { prisma } from "@/lib/prisma/client";
+
+const copy = copyAdminPtBr.trash;
+const productCopy = copyAdminPtBr.products;
+const categoryCopy = copyAdminPtBr.categories;
+
+export async function queryTrash(): Promise<{
+  products: { id: string; name: string; slug: string; deletedAt: Date }[];
+  categories: { id: string; name: string; slug: string; deletedAt: Date }[];
+}> {
+  await requireStaff();
+
+  const [products, categories] = await Promise.all([
+    prisma.product.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, name: true, slug: true, deletedAt: true },
+      orderBy: { deletedAt: "desc" },
+    }),
+    prisma.category.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, name: true, slug: true, deletedAt: true },
+      orderBy: { deletedAt: "desc" },
+    }),
+  ]);
+
+  return {
+    products: products.map((row) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      deletedAt: row.deletedAt as Date,
+    })),
+    categories: categories.map((row) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      deletedAt: row.deletedAt as Date,
+    })),
+  };
+}
+
+export async function restoreProduct(
+  id: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await requireStaff();
+
+  const product = await prisma.product.findFirst({
+    where: { id, deletedAt: { not: null } },
+    select: { id: true, slug: true },
+  });
+
+  if (!product) {
+    return { ok: false, message: productCopy.errorNotFound };
+  }
+
+  const slugConflict = await prisma.product.findFirst({
+    where: {
+      slug: product.slug,
+      deletedAt: null,
+      NOT: { id: product.id },
+    },
+    select: { id: true },
+  });
+
+  if (slugConflict) {
+    return { ok: false, message: copy.errorRestoreSlugConflict };
+  }
+
+  await prisma.product.update({
+    where: { id: product.id },
+    data: { deletedAt: null },
+  });
+
+  return { ok: true };
+}
+
+export async function restoreCategory(
+  id: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await requireStaff();
+
+  const category = await prisma.category.findFirst({
+    where: { id, deletedAt: { not: null } },
+    select: { id: true, slug: true },
+  });
+
+  if (!category) {
+    return { ok: false, message: categoryCopy.errorNotFound };
+  }
+
+  const slugConflict = await prisma.category.findFirst({
+    where: {
+      slug: category.slug,
+      deletedAt: null,
+      NOT: { id: category.id },
+    },
+    select: { id: true },
+  });
+
+  if (slugConflict) {
+    return { ok: false, message: copy.errorRestoreSlugConflict };
+  }
+
+  await prisma.category.update({
+    where: { id: category.id },
+    data: { deletedAt: null },
+  });
+
+  return { ok: true };
+}

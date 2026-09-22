@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id        String   @id @db.Uuid
+  email     String
+  role      String   @default("manager")
+  invitedBy String?  @map("invited_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  invitedByProfile Profile?  @relation("ProfileInvites", fields: [invitedBy], references: [id])
+  invitees         Profile[] @relation("ProfileInvites")
+  updatedSettings  StoreSetting[]
+
+  @@map("profiles")
+}
+
+model StoreSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  updater Profile? @relation(fields: [updatedBy], references: [id])
+
+  @@map("store_settings")
+}
+
+model Category {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  slug          String
+  description   String?
+  coverImageUrl     String? @map("cover_image_url")
+  coverStoragePath  String? @map("cover_storage_path")
+  fieldsSchema      Json    @default("[]") @map("fields_schema")
+  sortOrder     Int       @default(0) @map("sort_order")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId String    @map("category_id") @db.Uuid
+  name       String
+  slug       String
+  price      Decimal?  @db.Decimal(10, 2)
+  promoPrice Decimal?  @map("promo_price") @db.Decimal(10, 2)
+  status     String    @default("draft")
+  isFeatured Boolean   @default(false) @map("is_featured")
+  attributes Json      @default("{}")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  category Category       @relation(fields: [categoryId], references: [id])
+  images   ProductImage[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductImage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  storagePath String   @map("storage_path")
+  thumbUrl    String   @map("thumb_url")
+  cardUrl     String   @map("card_url")
+  detailUrl   String   @map("detail_url")
+  ogUrl       String   @map("og_url")
+  width       Int?
+  height      Int?
+  sizeKb      Int?     @map("size_kb")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}

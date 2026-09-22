@@ -4,9 +4,9 @@
 
 **Goal:** Subir o catálogo público (seed, sem admin) na raiz deste repo, em Next.js 16 + Supabase, conforme `docs/superpowers/specs/2026-09-18-fundacao-e-vitrine-design.md`.
 
-**Architecture:** Server Components leem Postgres via cliente Supabase anon; `queryProducts` é a única função de listagem (page + `GET /api/vitrine/produtos`). Branding = merge profundo banco → `branding.config.json` → fallback. Pipeline `sharp` existe e é testado; o seed usa placeholders.
+**Architecture:** Server Components leem Postgres via **Prisma** (`DATABASE_URL` pooler). `queryProducts` é a única listagem (page + `GET /api/vitrine/produtos`) e **sempre** filtra publicado/não deletado (Prisma bypassa RLS). Branding = merge banco → `branding.config.json` → fallback. `sharp` testado; seed com placeholders.
 
-**Tech Stack:** Next.js 16, React 19, TypeScript, Tailwind, pnpm, shadcn pontual, Zod, `@supabase/supabase-js` + `@supabase/ssr`, sharp, Vitest, Playwright, Supabase (Postgres + Storage).
+**Tech Stack:** Next.js 16, React 19, TypeScript, Tailwind, pnpm, shadcn pontual, Zod, **Prisma ORM**, sharp, Vitest, Playwright, Postgres no Supabase DEV (Auth/Storage no host; sem supabase-js neste spec).
 
 ## Global Constraints
 
@@ -14,13 +14,15 @@
 - Pasta atual **é** a raiz do Next. Se `create-next-app` nascer em subpasta, mover o conteúdo para cima. Preservar `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/`.
 - **Jamais** `supabase db reset` (nem `db push` destrutivo) em banco de **cliente**. O projeto Supabase de **desenvolvimento** pode resetar quando preciso.
 - Sem `/admin`, sem `proxy.ts`/`middleware.ts`, sem `promo_campaigns`/`audit_log`, sem lead/`/obrigado`.
-- pnpm único. Sem `NEXT_PUBLIC_` em segredo. Vitrine não usa `service_role`.
+- pnpm único. Sem `NEXT_PUBLIC_` em segredo. Sem `service_role`, `anon` ou senha solta no runtime — só `DATABASE_URL` + `DIRECT_URL` + vars da spec §16.
+- Prisma no servidor apenas. Toda query de catálogo filtra `published` + `deletedAt: null`.
+- Subagentes **não commitam** (humano pede commit). Context7 para Prisma/Next no dia da task.
 - IDs `uuid` + `gen_random_uuid()`. URLs: `/colecao/[slug]`, `/produto/[slug]`.
 - Copy pt-BR em `src/lib/copy/pt-br.ts`. Arquivos kebab-case.
 - `params` e `searchParams` são `Promise` (Next 16): sempre `await`.
 - TDD nos módulos de domínio (Tasks 3–7) antes da UI.
-- Context7 para APIs de Next/Supabase/shadcn no momento da implementação.
-- Commits só quando o humano pedir, **exceto** o commit inicial em `main` necessário para existir `dev`/`local`.
+- Context7 para APIs de Next/Prisma/shadcn no momento da implementação.
+- Commits só quando o humano pedir, **exceto** o commit inicial em `main` já feito.
 
 **Spec:** `docs/superpowers/specs/2026-09-18-fundacao-e-vitrine-design.md`
 
@@ -135,9 +137,11 @@ Expected: exit 0.
 - [ ] **Step 1:** Dependências
 
 ```powershell
-pnpm add zod sharp @supabase/supabase-js @supabase/ssr
+pnpm add zod sharp
 pnpm add -D vitest @vitejs/plugin-react jsdom @playwright/test
 ```
+
+Não instalar `@supabase/supabase-js` nem `@supabase/ssr` neste spec. Prisma entra na Task 8.
 
 - [ ] **Step 2:** Scripts em `package.json`
 
@@ -159,7 +163,11 @@ import { defineConfig } from "vitest/config";
 import path from "node:path";
 
 export default defineConfig({
-  test: { environment: "node", include: ["src/**/*.test.ts"] },
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+    passWithNoTests: true, // Vitest 5 sai 1 com 0 arquivos; pnpm check no scaffold
+  },
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
 });
 ```
@@ -287,71 +295,67 @@ Regras: JPEG/PNG/WebP; lado menor < 800 → throw; HEIC → throw. `buildWhatsap
 
 ---
 
-### Task 8: Supabase — migrations, seed, RLS, env
+### Task 8: Prisma — schema, migrate, RLS SQL, seed
 
 **Files:**
-- Create: `supabase/config.toml` (via `supabase init` se necessário)
-- Create: `supabase/migrations/20260918120000_extensions.sql`
-- Create: `supabase/migrations/20260918120100_catalog.sql`
-- Create: `supabase/migrations/20260918120200_rls.sql`
-- Create: `supabase/migrations/20260918120300_storage.sql`
-- Create: `supabase/migrations/20260918120400_profile_trigger.sql`
-- Create: `supabase/seed.sql`
-- Create: `.env.example`
+- Create: `prisma/schema.prisma`, `prisma.config.ts` (se a versão vigente exigir)
+- Create: `prisma/migrations/*` (tabelas + SQL de extensões/RLS/trigger/storage)
+- Create: `prisma/seed.ts`
+- Create: `src/lib/prisma/client.ts`
+- Modify: `package.json` (`prisma`, `@prisma/client`, adapter `pg` se Prisma 7)
+- Modify: `.env.example` (já alinhado à spec §16)
 
-**Constraints:** `enable_signup = false`. Reset **somente** no projeto de desenvolvimento (local ou o remoto DEV). Comentário no README: nunca apontar `supabase link` de cliente e dar reset.
+**Constraints:** `DATABASE_URL` (pooler) + `DIRECT_URL` (migrate). Aplicar **só** no Supabase DEV. Jamais migrate/reset em cliente.
 
-- [ ] **Step 1:** `supabase init` na raiz se `supabase/config.toml` não existir. Não commitar secrets.
+- [ ] **Step 1:** Context7 — `prisma init` / config atual. Modelos: `Profile`, `StoreSetting`, `Category`, `Product`, `ProductImage` conforme spec §7 (`uuid` `@default(dbgenerated("gen_random_uuid()"))`, slugs, `Json` em `fieldsSchema`/`attributes`, `price` Decimal opcional, checks via SQL se o Prisma não emitir).
 
-- [ ] **Step 2:** SQL conforme spec §7. Extensões `pgcrypto` + `unaccent`. Checks de status/role/promo. Índices parciais + GIN `attributes`. Trigger `touch_updated_at`. Trigger em `auth.users` → `profiles` role `manager`.
+- [ ] **Step 2:** Singleton
 
-RLS: policies SELECT `anon, authenticated` exatamente como a tabela da spec §7.3. Sem INSERT/UPDATE/DELETE.
-
-Storage: bucket `product-images`; leitura pública `variants/**`.
-
-- [ ] **Step 3:** `seed.sql` — 2 categorias `trico`/`jeans` + 1 inativa; ≥ 16 publicados; 1 draft slug `rascunho-oculto`; 1 sem preço; 1 promo; 1 featured; 2 imagens `placehold.co` por publicado; `store_settings` vazio.
-
-- [ ] **Step 4:** Aplicar **só** no alvo DEV:
-
-```powershell
-# local:
-supabase start
-supabase db reset
-# remoto DEV (se for o caso), NUNCA projeto cliente:
-# supabase db reset --linked   # somente se o link for o projeto de desenvolvimento
+```ts
+// src/lib/prisma/client.ts — padrão oficial da versão (adapter-pg se Prisma 7)
+export const prisma: PrismaClient;
 ```
 
-Expected: reset ok; `select count(*) from products` ≥ 16 publicados via SQL.
+Nunca importar no client component.
 
-- [ ] **Step 5:** `.env.example` com as chaves da spec §16, sem valores.
+- [ ] **Step 3:** Migration SQL extra: `unaccent`, índices parciais + GIN, `touch_updated_at`, RLS da spec §7.3, trigger `auth.users` → `profiles`, bucket `product-images` leitura pública `variants/**`.
 
-**Done when:** `db reset` no DEV aplica migrations + seed.
+- [ ] **Step 4:** `prisma/seed.ts` — 2 categorias `trico`/`jeans` + 1 inativa; ≥ 16 publicados; draft `rascunho-oculto`; 1 sem preço; 1 promo; 1 featured; 2 placeholders `placehold.co` por publicado; `store_settings` vazio.
+
+- [ ] **Step 5:** No DEV apenas:
+
+```powershell
+pnpm exec prisma migrate deploy
+pnpm exec prisma db seed
+```
+
+Expected: `prisma.product.count({ where: { status: "published", deletedAt: null } })` ≥ 16.
+
+**Done when:** migrate + seed no DEV; `.env.example` sem chaves mortas.
 
 ---
 
-### Task 9: Cliente Supabase + resolveBranding + legais + copy
+### Task 9: resolveBranding + legais + copy (Prisma)
 
 **Files:**
-- Create: `src/lib/supabase/server.ts`
 - Create: `src/lib/branding/resolve-branding.ts`
 - Create: `src/lib/legal/resolve-legal.ts`
 - Create: `src/content/legal/privacidade.md`, `cookies.md`, `termos.md`
 - Create: `src/lib/copy/pt-br.ts`
 - Create: `src/config/site.ts`
-- Test: `src/lib/branding/resolve-branding.test.ts` (mock do client: throw → arquivo)
+- Test: `src/lib/branding/resolve-branding.test.ts` (Prisma throw → arquivo)
 
 **Interfaces:**
 
 ```ts
-export function createSupabaseServerClient(): SupabaseClient; // anon only
 export async function resolveBranding(): Promise<Branding>; // catch → file/fallback
 export async function resolveLegalPage(slug: "privacidade" | "cookies" | "termos"): Promise<string>;
 export function getSiteUrl(): string; // NEXT_PUBLIC_SITE_URL
 ```
 
-Sem `browser.ts`. Sem `SERVICE_ROLE`.
+Lê `store_settings` via `prisma.storeSetting.findMany()`. Sem supabase-js. Sem `SERVICE_ROLE`.
 
-**Done when:** teste de branding com client que throw devolve JSON Equilibrium.
+**Done when:** teste com Prisma que throw devolve JSON Equilibrium.
 
 ---
 
@@ -383,11 +387,11 @@ export async function queryProductBySlug(slug: string): Promise<ProductDetail | 
 export async function queryRelated(categoryId: string, excludeId: string, limit?: number): Promise<ProductCard[]>;
 ```
 
-Keyset, sem `OFFSET`. Draft some via RLS. Ordenação por preço: `price is null` no fim.
+Keyset, sem `OFFSET`. Draft some no `where` do Prisma (`status: "published", deletedAt: null`) **e** na categoria (`isActive: true`). Ordenação por preço: `price` null no fim.
 
-Filtros JSONB: `@>` para um valor; vários valores da mesma chave = OR (`or(...)` no supabase-js).
+Filtros JSON: `path`/`array_contains` ou `Prisma.sql` com `@>` — AND entre chaves, OR dentro da chave.
 
-Busca: `unaccent(name) ilike` + `unaccent(attributes::text) ilike` via `.filter`/rpc se o client não expuser `unaccent`. Se PostgREST não permitir `unaccent` direto, criar SQL function `public.search_products(...)` `security invoker` + `stable` na mesma task (não `security definer`).
+Busca: `unaccent` via `$queryRaw` / função `security invoker` `public.search_products` se o Client não expressar. Sem `security definer`.
 
 **Done when:** com seed, query da coleção `trico` pageSize 12 devolve `nextCursor` não nulo.
 
@@ -504,7 +508,7 @@ Cobrir os 7 casos da spec §19. `WHATSAPP_NUMBER=5511999998888`, GTM vazio.
 | Spec | Task |
 | --- | --- |
 | §5 scaffold / scripts | 2, 3 |
-| §7 schema/RLS/storage | 8 |
+| §7 schema/RLS/storage (Prisma) | 8 |
 | §8 branding | 4, 9, 11 |
 | §9 rotas/UX | 11–16 |
 | §10 cursor/API | 6, 10, 13 |
