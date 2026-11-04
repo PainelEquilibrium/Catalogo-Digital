@@ -7,6 +7,10 @@ describe("parseStaffRole", () => {
     expect(parseStaffRole("manager")).toBe("manager");
   });
 
+  it("aceita support", () => {
+    expect(parseStaffRole("support")).toBe("support");
+  });
+
   it("rejeita null, admin e string vazia", () => {
     expect(parseStaffRole(null)).toBeNull();
     expect(parseStaffRole("admin")).toBeNull();

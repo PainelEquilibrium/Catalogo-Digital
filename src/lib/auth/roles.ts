@@ -1,6 +1,10 @@
-export type StaffRole = "owner" | "manager";
+export type StaffRole = "owner" | "manager" | "support";
 
-const STAFF_ROLES: ReadonlySet<string> = new Set(["owner", "manager"]);
+const STAFF_ROLES: ReadonlySet<string> = new Set([
+  "owner",
+  "manager",
+  "support",
+]);
 
 export function parseStaffRole(
   role: string | null | undefined,
