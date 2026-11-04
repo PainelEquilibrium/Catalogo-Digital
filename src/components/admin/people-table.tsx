@@ -40,16 +40,23 @@ export function PeopleTable({ people }: { people: PersonView[] }) {
   async function run(task: () => Promise<Outcome>): Promise<boolean> {
     setBusy(true);
     setError(null);
-    const result = await task();
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.message);
-      toast.error(result.message);
+    try {
+      const result = await task();
+      if (!result.ok) {
+        setError(result.message);
+        toast.error(result.message);
+        return false;
+      }
+      if (result.tempPassword) setTempPassword(result.tempPassword);
+      router.refresh();
+      return true;
+    } catch {
+      setError(copy.errorGeneric);
+      toast.error(copy.errorGeneric);
       return false;
+    } finally {
+      setBusy(false);
     }
-    if (result.tempPassword) setTempPassword(result.tempPassword);
-    router.refresh();
-    return true;
   }
 
   async function handleCreate(event: React.FormEvent) {

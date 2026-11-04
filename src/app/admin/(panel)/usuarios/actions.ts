@@ -91,7 +91,10 @@ export async function createManager(input: {
       });
     });
   } catch {
-    await admin.auth.admin.deleteUser(id);
+    console.error("createManager: falha na transação", id);
+    // profiles.id tem FK ON DELETE CASCADE para auth.users: apagar o login remove o perfil.
+    const { error: rollbackError } = await admin.auth.admin.deleteUser(id);
+    if (rollbackError) console.error("createManager: rollback do login falhou", id);
     return { ok: false, message: copy.errorGeneric };
   }
   return { ok: true, tempPassword };
@@ -120,6 +123,7 @@ export async function resetPersonPassword(
     // A troca pela Admin API já revoga as sessões abertas (provado em people-sessions.integration.test).
     await replaceUserPassword(createAdminSupabase(), id, tempPassword);
   } catch {
+    console.error("resetPersonPassword: troca de senha falhou", id);
     return { ok: false, message: copy.errorGeneric };
   }
   return { ok: true, tempPassword };
