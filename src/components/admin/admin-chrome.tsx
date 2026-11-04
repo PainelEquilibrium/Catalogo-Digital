@@ -8,11 +8,14 @@ import { BrandLogo } from "@/components/layout/brand-logo";
 import { Button } from "@/components/ui/button";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { createBrowserSupabase } from "@/lib/auth/browser";
+import { canPerform, type StaffAction } from "@/lib/auth/permissions";
+import type { StaffRole } from "@/lib/auth/roles";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 import { cn } from "@/lib/utils";
 
 type AdminChromeProps = {
   branding: Branding;
+  role: StaffRole;
   children: React.ReactNode;
 };
 
@@ -20,9 +23,10 @@ const navItems = [
   { href: "/admin/produtos", label: copyAdminPtBr.chrome.products },
   { href: "/admin/categorias", label: copyAdminPtBr.chrome.categories },
   { href: "/admin/lixeira", label: copyAdminPtBr.chrome.trash },
-] as const;
+  { href: "/admin/usuarios", label: copyAdminPtBr.chrome.people, action: "people" },
+] as { href: string; label: string; action?: StaffAction }[];
 
-export function AdminChrome({ branding, children }: AdminChromeProps) {
+export function AdminChrome({ branding, role, children }: AdminChromeProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -45,7 +49,9 @@ export function AdminChrome({ branding, children }: AdminChromeProps) {
             <span className="text-sm font-medium">{branding.store.name}</span>
           </Link>
           <nav className="flex flex-1 flex-wrap items-center gap-1">
-            {navItems.map((item) => (
+            {navItems
+              .filter((item) => !item.action || canPerform(role, item.action))
+              .map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

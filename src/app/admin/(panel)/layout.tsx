@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminChrome } from "@/components/admin/admin-chrome";
 import { resolveBranding } from "@/lib/branding/resolve-branding";
-import { requireStaff, StaffAuthError } from "@/lib/auth/server";
+import { requireStaff, StaffAuthError, type StaffSession } from "@/lib/auth/server";
 
 function isForbiddenPage(pathname: string): boolean {
   return (
@@ -19,8 +19,9 @@ export default async function AdminPanelLayout({
   const pathname = (await headers()).get("x-pathname") ?? "";
   const branding = await resolveBranding();
 
+  let session: StaffSession;
   try {
-    await requireStaff();
+    session = await requireStaff();
   } catch (error) {
     if (!(error instanceof StaffAuthError)) {
       throw error;
@@ -37,5 +38,5 @@ export default async function AdminPanelLayout({
     redirect("/admin/sem-acesso");
   }
 
-  return <AdminChrome branding={branding}>{children}</AdminChrome>;
+  return <AdminChrome branding={branding} role={session.role}>{children}</AdminChrome>;
 }
