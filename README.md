@@ -175,3 +175,53 @@ docs/misc/                       arquivo morto
 ## Licença e operação
 
 Repositório privado da Equilibrium Tecnologia. Cada loja recebe o sistema; infraestrutura e chaves ficam com a Equilibrium.
+
+## Imagens: originais privados e variantes públicas (16/10/2026)
+
+O original permanece privado em `product-images/originals/**`. As quatro variantes WebP (`thumb`, `card`, `detail`, `og`) ficam em `product-image-variants/variants/**`, com download público sem sessão. O runtime usa a sessão de staff para escrever/remover. URLs de rascunhos conhecidas continuam públicas; despublicação e lixeira não revogam URLs nem caches externos. Soft delete/restauração preserva os arquivos. Remoção física pode deixar conteúdo em cache após a exclusão.
+
+A migration `20261016180000_image_storage_buckets` provisiona bucket e policies. No Dashboard, a alternativa é criar configuração equivalente, conferir visibilidade, prefixos e policies e executar a migration versionada. Não editar histórico/checksum nem marcar migration aplicada sem comprovar equivalência. O bucket público nunca deve receber originais. A proteção adicional de UPDATE está em `20261017150000_prevent_image_bucket_changes`: trigger `SECURITY INVOKER` bloqueia mudança de bucket envolvendo os dois buckets e permite UPDATE no mesmo bucket. Por atuar no schema gerenciado do Supabase, exige revisão em manutenção futura do Storage ou antes de autorizar movimentação entre buckets.
+
+### Corte operacional
+
+Somente o DEV `fzmnuodimupkmptdvfee` foi autorizado nesta entrega. Cliente/produção exige antes pacote concreto: backup de banco e objetos Storage, inventário de Auth/config/policies necessários, restauração isolada validada, manifesto e simulação revisados; obter aprovação explícita desse pacote antes de executar. Nunca resetar banco de cliente.
+
+1. Pausar uploads, substituições e remoções em **todas** as instâncias; aguardar operações em voo. Leituras podem continuar.
+2. Confirmar projeto/URLs de conexão e registrar estado/backup. Provisionar bucket/policies pela migration.
+3. Gerar inventário/simulação com a CLI. Revisar elegíveis, ignorados, órfãos, ausências, hashes, conflitos e falhas; não presumir que o registro investigado em 16/10 ainda é elegível. Conjunto incompleto bloqueia atualização; não há regeneração automática.
+4. Copiar/verificar com `--apply --copy-only`; conferir download público sem credenciais, WebP e SHA-256. Não sobrescrever destino divergente nem apagar legado.
+5. Disponibilizar código compatível com os dois layouts. Executar `--apply` para atualizar referências condicionalmente, somente quando ainda correspondem ao manifesto. Essa segunda fase altera o banco.
+6. Comprovar permissões e carregamento real no admin/vitrine/OG/otimizador. Revisar contagens e pendências; então retomar mutações.
+
+Com ambiente preparado fora do Git (`DATABASE_URL`, URL/chave pública do Supabase e `IMAGE_MIGRATION_ACCESS_TOKEN` de sessão staff), a simulação padrão usa destino novo ignorado pelo Git:
+
+```bash
+pnpm exec tsx scripts/migrate-image-variants.ts --project-ref fzmnuodimupkmptdvfee --manifest .superpowers/sdd/2026-10-16-separacao-buckets-imagens/inventory-dev.json
+# Somente após implementação/revisão da fase apply e revisão do manifesto:
+pnpm exec tsx scripts/migrate-image-variants.ts --project-ref fzmnuodimupkmptdvfee --manifest .superpowers/sdd/2026-10-16-separacao-buckets-imagens/inventory-dev.json --apply --copy-only
+pnpm exec tsx scripts/migrate-image-variants.ts --project-ref fzmnuodimupkmptdvfee --manifest .superpowers/sdd/2026-10-16-separacao-buckets-imagens/inventory-dev.json --apply
+```
+
+O manifesto e seu journal contêm dados operacionais: preservar fora do Git, assim como tokens, credenciais e dumps. Revisar o journal após interrupção antes de reexecutar. Não apresentar comandos documentados como execução concluída.
+
+### Retorno condicional
+
+Pausar mutações, simular com `--rollback` (sem `--apply`), revisar conflitos e só então executar `--rollback --apply` sobre o mesmo manifesto. Atualizar apenas referências ainda correspondentes às URLs novas registradas; não sobrescrever edições posteriores. O retorno recupera URLs antigas possivelmente inválidas, sem garantir exibição funcional. Manter os dois buckets e suporte aos dois layouts, sobretudo após novos uploads. Não retornar isoladamente para código de bucket único nem excluir o bucket público.
+
+### Provas e limites
+
+```bash
+pnpm check
+pnpm build
+pnpm exec playwright test e2e/admin.spec.ts e2e/vitrine.spec.ts
+# Somente com configuração opt-in do DEV conferida:
+pnpm exec vitest run src/lib/images/storage-policies.integration.test.ts
+```
+
+A matriz Storage só roda com `RUN_STORAGE_INTEGRATION=1`, `STORAGE_DEV_PROJECT_REF`, `STORAGE_DEV_CONFIRM=DEV:<ref>` e credenciais isoladas de owner/manager/nonstaff descritas no teste. O nonstaff precisa existir no Auth sem perfil de staff. `STORAGE_LEGACY_VARIANT_PATH` e `STORAGE_LEGACY_VARIANT_MANAGER_PATH` identificam fixtures legadas descartáveis, distintas e previamente provisionadas: o teste consome/remove essas fixtures; reprovisionar novos objetos antes de repetir. Não usar objetos reais de catálogo como fixture. Mocks unitários não comprovam RLS.
+
+O E2E admin cria sua categoria/produto e usa `public/images/clothes-placeholder-imagem.webp`; aguarda lazy loading e `complete && naturalWidth > 0`, incluindo editor/listagem, home/coleção, galeria e capas. Downloads usam contexto sem cookies; OG e `/_next/image` exigem HTTP 200 e conteúdo de imagem. As simulações de aviso de limpeza e falha da terceira capa são interceptações restritas ao E2E: comprovam comportamento da UI, enquanto falhas Storage são verificadas nos testes unitários e permissões na matriz real. Não adicionar mecanismos de falha ao runtime.
+
+**Atualização em 17/10/2026 — implementação e corte DEV concluídos.** A migration adicional `20261017150000_prevent_image_bucket_changes` foi aplicada no DEV; repetição sem pendências. O P1 de UPDATE entre buckets foi corrigido: quatro falhas RED → matriz RLS real GREEN 7/7 em 49,2 s (quatro novas e três anteriores), substituindo a evidência anterior de 3 PASS de 16/10. `pnpm check` atual: 180 PASS/7 opt-in SKIP, typecheck aprovado e lint sem erros (9 warnings preexistentes); build aprovado com 16 páginas. Transição e ações mantêm as auditorias registradas de 48 PASS e 14 PASS. Estes são resultados confirmados pela coordenação, não novas execuções desta atualização documental.
+
+A leitura remota confirmou buckets privado/público corretos e 76 variantes copiadas. A retomada copy-only com o manifesto anterior registrou 19 elegíveis, zero cópias, 76 verificadas, zero updates/conflitos/falhas e 41 ignorados. Apply real concluído: 19 elegíveis, zero cópias, 76 verificadas, 19 updates, 41 ignorados, zero conflitos/falhas. Simulação de retorno: zero updates, 60 ignorados, zero conflitos/falhas; retorno real: 19 updates, 41 ignorados, zero conflitos/falhas. Servidor permaneceu parado e nenhum arquivo foi removido. Reapply real passou: 19 updates, 76 verificadas, 41 ignorados, zero cópias/conflitos/falhas. Idempotência real passou (exit 0): 19 elegíveis, zero cópias, 76 verificadas, zero updates, 60 ignorados e zero conflitos/falhas. Browser: admin 11/11 na rodada final (1,7 min) e vitrine 8/8 na primeira rodada, sem mudança de runtime entre elas; total de 19 cenários distintos aprovados, incluindo OG/otimizador. Revisão focada dos ajustes E2E sem achados. Estado final DEV: 19 referências migradas, 41 externas preservadas, 19 originais e 76 variantes legadas mantidos. Warnings SVG/hydration preexistentes permanecem fora do escopo. Sem commit/push; localhost:3000 permanece disponível pela coordenação. Cliente/produção não executado nem aprovado.

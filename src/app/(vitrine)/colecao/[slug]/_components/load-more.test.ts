@@ -51,4 +51,20 @@ describe("fetchMoreProductCards", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("omite slug na busca geral", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [], nextCursor: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchMoreProductCards(undefined, "cursor-token", "q=gola");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/vitrine/produtos?q=gola&cursor=cursor-token",
+    );
+
+    vi.unstubAllGlobals();
+  });
 });

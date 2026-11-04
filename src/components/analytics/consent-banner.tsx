@@ -42,7 +42,7 @@ export function ConsentBanner({ onAccept, onReject }: ConsentBannerProps) {
           <button
             type="button"
             onClick={onAccept}
-            className="rounded-[var(--radius)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-background)] transition-opacity hover:opacity-90"
+            className="rounded-[var(--radius)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-on-primary)] transition-opacity hover:opacity-90"
           >
             {copyPtBr.consent.accept}
           </button>

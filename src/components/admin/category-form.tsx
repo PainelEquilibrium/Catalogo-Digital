@@ -63,6 +63,7 @@ export function CategoryForm({ initial = null }: CategoryFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [coverUrl, setCoverUrl] = useState(initial?.coverImageUrl ?? null);
+  const [confirmedCoverUrl, setConfirmedCoverUrl] = useState(initial?.coverImageUrl ?? null);
   const [coverUploading, setCoverUploading] = useState(false);
 
   async function handleCoverChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -77,17 +78,26 @@ export function CategoryForm({ initial = null }: CategoryFormProps) {
     setCoverUploading(true);
     const formData = new FormData();
     formData.set("file", file);
-    const result = await setCategoryCover(initial.id, formData);
+    let result;
+    try {
+      result = await setCategoryCover(initial.id, formData);
+    } catch {
+      result = { ok: false as const, message: uploadCopy.errorGeneric };
+    }
     setCoverUploading(false);
 
     if (!result.ok) {
       URL.revokeObjectURL(previewUrl);
-      setCoverUrl(initial?.coverImageUrl ?? null);
+      setCoverUrl(confirmedCoverUrl);
       toast.error(result.message);
       return;
     }
 
-    toast.success(uploadCopy.coverSaved);
+    setConfirmedCoverUrl(result.coverImageUrl);
+    setCoverUrl(result.coverImageUrl);
+    URL.revokeObjectURL(previewUrl);
+    if (result.cleanupPending) toast.warning(uploadCopy.coverCleanupPending);
+    else toast.success(uploadCopy.coverSaved);
     router.refresh();
   }
 

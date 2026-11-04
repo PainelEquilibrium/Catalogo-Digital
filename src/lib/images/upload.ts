@@ -3,7 +3,14 @@ import { createServerSupabase } from "@/lib/auth/server";
 import { getSupabasePublicConfig } from "@/lib/auth/supabase-env";
 import { processImageBuffer } from "./process-image-buffer";
 
-const BUCKET = "product-images";
+const ORIGINAL_BUCKET = "product-images";
+const VARIANT_BUCKET = "product-image-variants";
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const ORIGINAL_PATH = new RegExp(`^originals/(${UUID})/(${UUID})$`, "i");
+const VARIANT_PATH = new RegExp(`^variants/${UUID}/${UUID}-(thumb|card|detail|og)\\.webp$`, "i");
+const VARIANTS = ["thumb", "card", "detail", "og"] as const;
+export type StorageObjectRef = { bucket: typeof ORIGINAL_BUCKET | typeof VARIANT_BUCKET; path: string };
+type StorageClient = Awaited<ReturnType<typeof createServerSupabase>>;
 
 type ImageScope =
   | { kind: "product"; productId: string }
@@ -26,32 +33,28 @@ function variantObjectPath(
 }
 
 export function publicObjectUrl(objectPath: string): string {
+  if (!VARIANT_PATH.test(objectPath)) throw new Error("Invalid image variant path");
   const { url } = getSupabasePublicConfig();
-  return `${url}/storage/v1/object/public/${BUCKET}/${objectPath}`;
+  return `${url}/storage/v1/object/public/${VARIANT_BUCKET}/${objectPath}`;
 }
 
-export function storagePathsForOriginal(storagePath: string): string[] {
-  const match = /^originals\/([^/]+)\/([^/]+)$/.exec(storagePath);
-  if (!match) {
-    return [storagePath];
-  }
+export function storageObjectsForOriginal(storagePath: string): StorageObjectRef[] {
+  const match = ORIGINAL_PATH.exec(storagePath);
+  if (!match) return [];
   const [, entityId, uuid] = match;
   return [
-    storagePath,
-    `variants/${entityId}/${uuid}-thumb.webp`,
-    `variants/${entityId}/${uuid}-card.webp`,
-    `variants/${entityId}/${uuid}-detail.webp`,
-    `variants/${entityId}/${uuid}-og.webp`,
+    { bucket: ORIGINAL_BUCKET, path: storagePath },
+    ...([ORIGINAL_BUCKET, VARIANT_BUCKET] as const).flatMap((bucket) => VARIANTS.map((variant) => ({ bucket, path: `variants/${entityId}/${uuid}-${variant}.webp` }))),
   ];
 }
 
 async function uploadObject(
-  path: string,
+  supabase: StorageClient,
+  object: StorageObjectRef,
   body: Buffer,
   contentType: string,
 ): Promise<void> {
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.storage.from(BUCKET).upload(path, body, {
+  const { error } = await supabase.storage.from(object.bucket).upload(object.path, body, {
     contentType,
     upsert: false,
   });
@@ -60,15 +63,26 @@ async function uploadObject(
   }
 }
 
-export async function removeStorageObjects(paths: string[]): Promise<void> {
-  if (paths.length === 0) {
-    return;
+async function removeObjects(supabase: StorageClient, objects: StorageObjectRef[]): Promise<void> {
+  for (const object of objects) {
+    if (!(object.bucket === ORIGINAL_BUCKET && ORIGINAL_PATH.test(object.path)) &&
+      !([ORIGINAL_BUCKET, VARIANT_BUCKET].includes(object.bucket) && VARIANT_PATH.test(object.path))) {
+      throw new Error("Invalid image storage reference");
+    }
   }
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.storage.from(BUCKET).remove(paths);
-  if (error) {
-    throw new Error(error.message);
-  }
+  const results = await Promise.allSettled([ORIGINAL_BUCKET, VARIANT_BUCKET].map(async (bucket) => {
+    const paths = objects.filter((object) => object.bucket === bucket).map((object) => object.path);
+    if (!paths.length) return;
+    const { error } = await supabase.storage.from(bucket).remove(paths);
+    if (error && !("code" in error && error.code === "NoSuchKey")) throw new Error(`Image cleanup failed in ${bucket}`);
+  }));
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure?.status === "rejected") throw failure.reason;
+}
+
+export async function removeStorageObjects(objects: StorageObjectRef[]): Promise<void> {
+  if (!objects.length) return;
+  await removeObjects(await createServerSupabase(), objects);
 }
 
 export async function storeProcessedImage(input: {
@@ -87,6 +101,7 @@ export async function storeProcessedImage(input: {
   const processed = await processImageBuffer(input.bytes);
   const uuid = randomUUID();
   const storagePath = originalObjectPath(input.scope, uuid);
+  if (!ORIGINAL_PATH.test(storagePath)) throw new Error("Invalid image entity ID");
 
   const variantPaths = {
     thumb: variantObjectPath(input.scope, uuid, "thumb"),
@@ -95,13 +110,24 @@ export async function storeProcessedImage(input: {
     og: variantObjectPath(input.scope, uuid, "og"),
   };
 
-  await uploadObject(storagePath, input.bytes, "application/octet-stream");
-  await Promise.all([
-    uploadObject(variantPaths.thumb, processed.thumb, "image/webp"),
-    uploadObject(variantPaths.card, processed.card, "image/webp"),
-    uploadObject(variantPaths.detail, processed.detail, "image/webp"),
-    uploadObject(variantPaths.og, processed.og, "image/webp"),
-  ]);
+  const supabase = await createServerSupabase();
+  const confirmed: StorageObjectRef[] = [];
+  const upload = async (object: StorageObjectRef, body: Buffer, contentType: string) => {
+    await uploadObject(supabase, object, body, contentType);
+    confirmed.push(object);
+  };
+  try {
+    await upload({ bucket: ORIGINAL_BUCKET, path: storagePath }, input.bytes, "application/octet-stream");
+    const results = await Promise.allSettled(VARIANTS.map((variant) => upload(
+      { bucket: VARIANT_BUCKET, path: variantPaths[variant] }, processed[variant], "image/webp",
+    )));
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
+  } catch (error) {
+    try { await removeObjects(supabase, confirmed); }
+    catch { console.error("Image upload cleanup pending", confirmed); }
+    throw error;
+  }
 
   const sizeKb = Math.max(1, Math.ceil(input.bytes.length / 1024));
 
@@ -115,4 +141,17 @@ export async function storeProcessedImage(input: {
     height: processed.height,
     sizeKb,
   };
+}
+export function storageObjectsForPersistedImage(
+  storagePath: string | null,
+  urls: Partial<Record<"thumb" | "card" | "detail" | "og", string | null>>,
+): StorageObjectRef[] {
+  const objects = storageObjectsForOriginal(storagePath ?? "");
+  if (!objects.length || !Object.keys(urls).length) return [];
+  const { url } = getSupabasePublicConfig();
+  for (const [variant, persistedUrl] of Object.entries(urls)) {
+    if (!persistedUrl || !objects.some((object) => object.path.endsWith(`-${variant}.webp`) &&
+      persistedUrl === `${url}/storage/v1/object/public/${object.bucket}/${object.path}`)) return [];
+  }
+  return objects;
 }

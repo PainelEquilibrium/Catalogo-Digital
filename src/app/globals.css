@@ -1,6 +1,20 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+html.theme-transition::view-transition-old(root),
+html.theme-transition::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.theme-transition::view-transition-old(root) {
+  z-index: 1;
+}
+
+html.theme-transition::view-transition-new(root) {
+  z-index: 2;
+}
+
 @theme inline {
   --font-sans: var(--font-body);
 }
@@ -9,6 +23,23 @@ body {
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-body);
+}
+
+h1 {
+  font-family: var(--font-heading);
+}
+
+/* Logo por tema: preta no claro, branca no escuro (html.dark). */
+.brand-logo--dark {
+  display: none;
+}
+
+html.dark .brand-logo--light {
+  display: none;
+}
+
+html.dark .brand-logo--dark {
+  display: inline-block;
 }
 
 .skip-link {
@@ -37,7 +68,7 @@ body {
   white-space: normal;
   border-radius: var(--radius);
   background: var(--color-primary);
-  color: var(--color-background);
+  color: var(--color-on-primary);
   font-size: 0.875rem;
   text-decoration: none;
   outline: 2px solid var(--color-accent);

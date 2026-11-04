@@ -207,6 +207,8 @@ export const copyAdminPtBr = {
     coverTitle: "Capa da categoria",
     coverHint: "JPEG, PNG ou WebP. Lado menor de pelo menos 800 px, até 8 MB.",
     coverUploading: "Enviando capa…",
+    photoCleanupPending: "Foto removida. A limpeza dos arquivos ficou pendente.",
+    coverCleanupPending: "Capa salva. A limpeza dos arquivos anteriores ficou pendente.",
     coverSaved: "Capa atualizada.",
     errorTooLarge: "A imagem passa de 8 MB. Escolha um arquivo menor.",
     errorHeic: "Fotos HEIC não são aceitas. Converta para JPEG ou PNG.",

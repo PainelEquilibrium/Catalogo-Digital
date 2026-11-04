@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { brandingToCssVars } from "@/domain/branding";
 import { ThemeScript } from "@/components/layout/theme-script";
 import { resolveBranding } from "@/lib/branding/resolve-branding";
@@ -9,23 +9,35 @@ import { Toaster } from "@/components/ui/sonner";
 import { copyPtBr } from "@/lib/copy/pt-br";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
+// Fontes da marca Equilibrium (public/fonts). Helvetica = títulos (h1);
+// Gilroy = corpo. Telegraf e TT Lakes Neue são só de referência, não entram.
+const helvetica = localFont({
+  src: [
+    { path: "../../public/fonts/helvetica/Helvetica-Light.woff2", weight: "300", style: "normal" },
+    { path: "../../public/fonts/helvetica/Helvetica.woff2", weight: "400", style: "normal" },
+    { path: "../../public/fonts/helvetica/Helvetica-Bold.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-helvetica",
   display: "swap",
 });
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
+const gilroy = localFont({
+  src: [
+    { path: "../../public/fonts/gilroy/Gilroy-Light.woff2", weight: "300", style: "normal" },
+    { path: "../../public/fonts/gilroy/Gilroy-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../../public/fonts/gilroy/Gilroy-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../../public/fonts/gilroy/Gilroy-Bold.woff2", weight: "700", style: "normal" },
+    { path: "../../public/fonts/gilroy/Gilroy-Heavy.woff2", weight: "800", style: "normal" },
+  ],
+  variable: "--font-gilroy",
   display: "swap",
 });
 
 function withLoadedFonts(vars: Record<string, string>): Record<string, string> {
   return {
     ...vars,
-    "--font-body": "var(--font-inter), sans-serif",
-    "--font-heading": "var(--font-fraunces), serif",
+    "--font-body": "var(--font-gilroy), sans-serif",
+    "--font-heading": "var(--font-helvetica), sans-serif",
   };
 }
 
@@ -48,7 +60,19 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: branding.store.tagline,
     icons: {
-      icon: branding.store.favicon_url,
+      // Favicon acompanha o tema do sistema operacional (prefers-color-scheme).
+      icon: [
+        {
+          url: branding.store.icon.light,
+          media: "(prefers-color-scheme: light)",
+          type: "image/webp",
+        },
+        {
+          url: branding.store.icon.dark,
+          media: "(prefers-color-scheme: dark)",
+          type: "image/webp",
+        },
+      ],
     },
   };
 }
@@ -67,7 +91,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${inter.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${helvetica.variable} ${gilroy.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

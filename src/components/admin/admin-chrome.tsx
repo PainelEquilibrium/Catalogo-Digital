@@ -1,11 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { Branding } from "@/domain/branding";
 import { PoweredByEquilibrium } from "@/components/PoweredByEquilibrium";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { Button } from "@/components/ui/button";
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { createBrowserSupabase } from "@/lib/auth/browser";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 import { cn } from "@/lib/utils";
@@ -40,14 +41,7 @@ export function AdminChrome({ branding, children }: AdminChromeProps) {
             href="/admin/produtos"
             className="flex shrink-0 items-center gap-3 text-foreground"
           >
-            <Image
-              src={branding.store.logo_url}
-              alt={branding.store.name}
-              width={120}
-              height={40}
-              className="h-8 w-auto object-contain"
-              priority
-            />
+            <BrandLogo logo={branding.store.logo} alt={branding.store.name} />
             <span className="text-sm font-medium">{branding.store.name}</span>
           </Link>
           <nav className="flex flex-1 flex-wrap items-center gap-1">
@@ -66,6 +60,9 @@ export function AdminChrome({ branding, children }: AdminChromeProps) {
               </Link>
             ))}
           </nav>
+          {branding.theme.dark_mode.enabled && branding.theme.dark_mode.show_toggle ? (
+            <AnimatedThemeToggler className="text-foreground hover:bg-accent focus-visible:outline-ring" />
+          ) : null}
           <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
             {copyAdminPtBr.chrome.signOut}
           </Button>

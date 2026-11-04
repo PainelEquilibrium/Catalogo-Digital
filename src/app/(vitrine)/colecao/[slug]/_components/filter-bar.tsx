@@ -11,7 +11,7 @@ import type { CategoryField } from "@/domain/category-fields";
 import { copyPtBr } from "@/lib/copy/pt-br";
 
 type FilterBarProps = {
-  slug: string;
+  basePath: string;
   query: CatalogQuery;
   filterableFields: CategoryField[];
   sortOptions: SortKey[];
@@ -41,14 +41,12 @@ function toggleFilterValue(
   };
 }
 
-function buildCollectionHref(
-  slug: string,
+function buildListingHref(
+  basePath: string,
   query: Omit<CatalogQuery, "cursor">,
 ): string {
   const serialized = serializeCatalogSearchParams(query);
-  return serialized.length > 0
-    ? `/colecao/${slug}?${serialized}`
-    : `/colecao/${slug}`;
+  return serialized.length > 0 ? `${basePath}?${serialized}` : basePath;
 }
 
 function isFilterActive(
@@ -60,7 +58,7 @@ function isFilterActive(
 }
 
 export function FilterBar({
-  slug,
+  basePath,
   query,
   filterableFields,
   sortOptions,
@@ -75,7 +73,7 @@ export function FilterBar({
       ordenar: nextSort as SortKey,
       filters: query.filters,
     };
-    router.push(buildCollectionHref(slug, nextQuery));
+    router.push(buildListingHref(basePath, nextQuery));
   }
 
   return (
@@ -104,7 +102,7 @@ export function FilterBar({
 
         {hasActiveFilters ? (
           <Link
-            href={buildCollectionHref(slug, {
+            href={buildListingHref(basePath, {
               q: query.q,
               ordenar: query.ordenar,
               filters: {},
@@ -142,8 +140,8 @@ export function FilterBar({
                             ? "Sim"
                             : "Não"
                           : option;
-                      const href = buildCollectionHref(
-                        slug,
+                      const href = buildListingHref(
+                        basePath,
                         toggleFilterValue(query, field.key, option),
                       );
 

@@ -14,7 +14,8 @@ import {
 } from "@/lib/images/upload-errors";
 import {
   removeStorageObjects,
-  storagePathsForOriginal,
+  storageObjectsForOriginal,
+  storageObjectsForPersistedImage,
   storeProcessedImage,
 } from "@/lib/images/upload";
 import { prisma } from "@/lib/prisma/client";
@@ -262,12 +263,12 @@ export async function trashCategory(
 export async function setCategoryCover(
   categoryId: string,
   formData: FormData,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<{ ok: true; coverImageUrl: string; cleanupPending?: boolean } | { ok: false; message: string }> {
   await requireStaff();
 
   const category = await prisma.category.findFirst({
     where: { id: categoryId, deletedAt: null },
-    select: { id: true, coverStoragePath: true },
+    select: { id: true, coverStoragePath: true, coverImageUrl: true },
   });
 
   if (!category) {
@@ -290,24 +291,29 @@ export async function setCategoryCover(
     return { ok: false, message: messageForUploadError(code) };
   }
 
-  const previousPath = category.coverStoragePath;
-  if (previousPath) {
-    try {
-      await removeStorageObjects(storagePathsForOriginal(previousPath));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : uploadCopy.errorGeneric;
-      return { ok: false, message };
-    }
+  let saved;
+  try {
+    saved = await prisma.category.updateMany({
+      where: { id: category.id, deletedAt: null, coverStoragePath: category.coverStoragePath, coverImageUrl: category.coverImageUrl },
+      data: { coverImageUrl: stored.cardUrl, coverStoragePath: stored.storagePath },
+    });
+  } catch {
+    console.error("Category cover persistence failed", { categoryId: category.id, failure: "persistence" });
+    try { await removeStorageObjects(storageObjectsForOriginal(stored.storagePath)); }
+    catch { console.error("Category cover compensation pending", { categoryId: category.id, storagePath: stored.storagePath }); }
+    return { ok: false, message: uploadCopy.errorGeneric };
   }
-
-  await prisma.category.update({
-    where: { id: category.id },
-    data: {
-      coverImageUrl: stored.cardUrl,
-      coverStoragePath: stored.storagePath,
-    },
-  });
-
-  return { ok: true };
+  if (saved.count !== 1) {
+    try { await removeStorageObjects(storageObjectsForOriginal(stored.storagePath)); }
+    catch { console.error("Category cover compensation pending", { categoryId: category.id, storagePath: stored.storagePath }); }
+    return { ok: false, message: uploadCopy.errorGeneric };
+  }
+  try {
+    const previousObjects = storageObjectsForPersistedImage(category.coverStoragePath, { card: category.coverImageUrl });
+    if (previousObjects.length) await removeStorageObjects(previousObjects);
+  } catch {
+    console.error("Category cover cleanup pending", { categoryId: category.id, storagePath: category.coverStoragePath });
+    return { ok: true, coverImageUrl: stored.cardUrl, cleanupPending: true };
+  }
+  return { ok: true, coverImageUrl: stored.cardUrl };
 }

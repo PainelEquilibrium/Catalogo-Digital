@@ -6,7 +6,7 @@ import {
   type Cursor,
 } from "@/domain/catalog-query";
 import { mapProductToCard, type ProductCard } from "@/domain/product";
-import { parseFieldsSchema } from "@/domain/category-fields";
+import { parseFieldsSchema, type CategoryField } from "@/domain/category-fields";
 import { resolveBranding } from "@/lib/branding/resolve-branding";
 import { prisma } from "@/lib/prisma/client";
 import {
@@ -38,17 +38,20 @@ async function resolvePricing() {
   };
 }
 
-async function searchProductIdsInCategory(
-  categoryId: string,
+async function searchProductIds(
+  categoryId: string | undefined,
   queryText: string,
 ): Promise<string[]> {
   const pattern = `%${queryText}%`;
+  const categoryClause = categoryId
+    ? Prisma.sql`AND p.category_id = ${categoryId}::uuid`
+    : Prisma.empty;
   const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT p.id
     FROM public.products p
     INNER JOIN public.categories c ON c.id = p.category_id
-    WHERE p.category_id = ${categoryId}::uuid
-      AND p.status = 'published'
+    WHERE p.status = 'published'
+      ${categoryClause}
       AND p.deleted_at IS NULL
       AND c.is_active = true
       AND c.deleted_at IS NULL
@@ -68,37 +71,42 @@ function activeCursor(query: CatalogQuery): Cursor | null {
   return query.cursor;
 }
 
+/** Sem `categorySlug`, lista todas as categorias públicas (rota /busca). */
 export async function queryProducts(input: {
-  categorySlug: string;
+  categorySlug?: string;
   query: CatalogQuery;
 }): Promise<{ items: ProductCard[]; nextCursor: string | null }> {
-  const category = await prisma.category.findFirst({
-    where: publicCategoryWhere(input.categorySlug),
-    select: {
-      id: true,
-      fieldsSchema: true,
-    },
-  });
+  let categoryId: string | undefined;
+  let fieldsSchema: CategoryField[] = [];
 
-  if (!category) {
-    return { items: [], nextCursor: null };
+  if (input.categorySlug) {
+    const category = await prisma.category.findFirst({
+      where: publicCategoryWhere(input.categorySlug),
+      select: {
+        id: true,
+        fieldsSchema: true,
+      },
+    });
+
+    if (!category) {
+      return { items: [], nextCursor: null };
+    }
+
+    categoryId = category.id;
+    fieldsSchema = parseFieldsSchema(category.fieldsSchema);
   }
 
-  const fieldsSchema = parseFieldsSchema(category.fieldsSchema);
   const pricing = await resolvePricing();
   const sort = input.query.ordenar;
   const cursor = activeCursor(input.query);
 
   const andWhere: Prisma.ProductWhereInput[] = [
-    publicProductWhere(category.id),
+    publicProductWhere(categoryId),
     ...buildAttributeFilterClauses(input.query.filters, fieldsSchema),
   ];
 
   if (input.query.q) {
-    const matchedIds = await searchProductIdsInCategory(
-      category.id,
-      input.query.q,
-    );
+    const matchedIds = await searchProductIds(categoryId, input.query.q);
     if (matchedIds.length === 0) {
       return { items: [], nextCursor: null };
     }

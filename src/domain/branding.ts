@@ -2,6 +2,14 @@ import { z } from "zod";
 
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
+// Caminho local em /public (ex.: /images/logo.webp) ou URL absoluta.
+const assetPath = z.string().regex(/^(\/|https?:\/\/)\S+$/);
+
+const themeAssetSchema = z.object({
+  light: assetPath,
+  dark: assetPath,
+});
+
 const sectionWithLimitSchema = z.object({
   title: z.string(),
   enabled: z.boolean(),
@@ -26,6 +34,7 @@ const themeSchema = z.object({
   primary_color: hexColor,
   secondary_color: hexColor,
   background_color: hexColor,
+  surface_color: hexColor.optional(),
   text_color: hexColor,
   accent_color: hexColor,
   font_heading: z.string(),
@@ -47,8 +56,8 @@ export const brandingSchema = z.object({
   store: z.object({
     name: z.string(),
     tagline: z.string(),
-    logo_url: z.string().url(),
-    favicon_url: z.string().url(),
+    logo: themeAssetSchema,
+    icon: themeAssetSchema,
   }),
   theme: themeSchema,
   hero: z.object({
@@ -95,8 +104,14 @@ const RAW_FALLBACK: Branding = {
   store: {
     name: "Equilibrium Tecnologia",
     tagline: "Catálogo digital de roupas — descubra peças para o seu estilo",
-    logo_url: "https://placehold.co/240x80/2d3a4a/f4f6f8?text=Equilibrium",
-    favicon_url: "https://placehold.co/64x64/2d3a4a/f4f6f8?text=EQ",
+    logo: {
+      light: "/images/logo-black-3.webp",
+      dark: "/images/logo-white-3.webp",
+    },
+    icon: {
+      light: "/images/icone-preto-fundo-transparente.webp",
+      dark: "/images/icone-branco-fundo-transparente.webp",
+    },
   },
   theme: {
     primary_color: "#2D3A4A",
@@ -124,7 +139,7 @@ const RAW_FALLBACK: Branding = {
     title: "Nosso Catálogo",
     subtitle: "Roupas selecionadas para você explorar com calma",
     cta_label: "Ver novidades",
-    cta_link: "/?ordenar=novidades",
+    cta_link: "/busca",
   },
   sections: {
     new_arrivals: { title: "Novidades", enabled: true, limit: 8 },
@@ -336,32 +351,50 @@ export function deriveDarkTheme(
   return dark;
 }
 
+/**
+ * Escolhe, entre duas cores de texto, a que tem maior contraste sobre a
+ * superfície. Usado para texto sobre botões/badges coloridos, que não pode
+ * depender do fundo da página (no tema escuro ele seria escuro demais).
+ */
+function pickOnColor(surface: string, a: string, b: string): string {
+  return contrastRatio(a, surface) >= contrastRatio(b, surface) ? a : b;
+}
+
 export function brandingToCssVars(
   b: Branding,
   mode: "light" | "dark",
 ): Record<string, string> {
-  if (mode === "light") {
-    return {
-      "--color-primary": b.theme.primary_color,
-      "--color-secondary": b.theme.secondary_color,
-      "--color-background": b.theme.background_color,
-      "--color-text": b.theme.text_color,
-      "--color-accent": b.theme.accent_color,
-      "--color-surface": b.theme.background_color,
-      "--radius": b.theme.border_radius,
-      "--font-heading": b.theme.font_heading,
-      "--font-body": b.theme.font_body,
-    };
-  }
+  const palette =
+    mode === "light"
+      ? {
+          primary: b.theme.primary_color,
+          secondary: b.theme.secondary_color,
+          background: b.theme.background_color,
+          surface: b.theme.surface_color ?? b.theme.background_color,
+          text: b.theme.text_color,
+          accent: b.theme.accent_color,
+        }
+      : (() => {
+          const dark = b.theme.dark ?? deriveDarkTheme(b.theme);
+          return {
+            primary: dark.primary_color,
+            secondary: dark.secondary_color,
+            background: dark.background_color,
+            surface: dark.surface_color,
+            text: dark.text_color,
+            accent: dark.accent_color,
+          };
+        })();
 
-  const dark = b.theme.dark ?? deriveDarkTheme(b.theme);
   return {
-    "--color-primary": dark.primary_color,
-    "--color-secondary": dark.secondary_color,
-    "--color-background": dark.background_color,
-    "--color-text": dark.text_color,
-    "--color-accent": dark.accent_color,
-    "--color-surface": dark.surface_color,
+    "--color-primary": palette.primary,
+    "--color-secondary": palette.secondary,
+    "--color-background": palette.background,
+    "--color-text": palette.text,
+    "--color-accent": palette.accent,
+    "--color-surface": palette.surface,
+    "--color-on-primary": pickOnColor(palette.primary, palette.background, palette.text),
+    "--color-on-accent": pickOnColor(palette.accent, palette.background, palette.text),
     "--radius": b.theme.border_radius,
     "--font-heading": b.theme.font_heading,
     "--font-body": b.theme.font_body,

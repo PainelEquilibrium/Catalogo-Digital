@@ -14,6 +14,10 @@ export type ParseVitrineRequestResult =
   | { ok: true; slug: string; query: CatalogQuery; filterableKeys: string[] }
   | { ok: false; status: 400; message: string };
 
+export type ParseVitrineSearchResult =
+  | { ok: true; query: CatalogQuery }
+  | { ok: false; status: 400; message: string };
+
 export function parseVitrineProductsRequest(
   searchParams: URLSearchParams,
   fieldsSchema: CategoryField[],
@@ -29,6 +33,24 @@ export function parseVitrineProductsRequest(
   }
 
   const filterableKeys = getPublicFilterableKeys(fieldsSchema);
+  const parsed = parseQueryWithCursor(searchParams, filterableKeys);
+  if (!parsed.ok) {
+    return parsed;
+  }
+
+  return { ok: true, slug: trimmedSlug, query: parsed.query, filterableKeys };
+}
+
+export function parseVitrineSearchRequest(
+  searchParams: URLSearchParams,
+): ParseVitrineSearchResult {
+  return parseQueryWithCursor(searchParams, []);
+}
+
+function parseQueryWithCursor(
+  searchParams: URLSearchParams,
+  filterableKeys: string[],
+): ParseVitrineSearchResult {
   const cursorParam = searchParams.get("cursor");
   if (cursorParam !== null && cursorParam.length > 0) {
     try {
@@ -43,7 +65,7 @@ export function parseVitrineProductsRequest(
     return { ok: false, status: 400, message: "cursor inválido" };
   }
 
-  return { ok: true, slug: trimmedSlug, query, filterableKeys };
+  return { ok: true, query };
 }
 
 export function parseVitrineFieldsSchema(raw: unknown): CategoryField[] | null {

@@ -48,8 +48,15 @@ export function ImageGalleryEditor({
     setBusy(true);
     const formData = new FormData();
     formData.set("file", file);
-    const result = await addProductImage(productId, formData);
-    setBusy(false);
+    let result;
+    try {
+      result = await addProductImage(productId, formData);
+    } catch {
+      toast.error(copy.errorGeneric);
+      return;
+    } finally {
+      setBusy(false);
+    }
 
     if (!result.ok) {
       toast.error(result.message);
@@ -81,8 +88,15 @@ export function ImageGalleryEditor({
     const orderedIds = next.map((row) => row.id);
 
     setBusy(true);
-    const result = await reorderProductImages(productId, orderedIds);
-    setBusy(false);
+    let result;
+    try {
+      result = await reorderProductImages(productId, orderedIds);
+    } catch {
+      toast.error(copy.errorGeneric);
+      return;
+    } finally {
+      setBusy(false);
+    }
 
     if (!result.ok) {
       toast.error(result.message);
@@ -95,8 +109,15 @@ export function ImageGalleryEditor({
 
   async function remove(imageId: string) {
     setBusy(true);
-    const result = await removeProductImage(imageId);
-    setBusy(false);
+    let result;
+    try {
+      result = await removeProductImage(imageId);
+    } catch {
+      toast.error(copy.errorGeneric);
+      return;
+    } finally {
+      setBusy(false);
+    }
 
     if (!result.ok) {
       toast.error(result.message);
@@ -104,6 +125,7 @@ export function ImageGalleryEditor({
     }
 
     setImages((current) => current.filter((row) => row.id !== imageId));
+    if (result.cleanupPending) toast.warning(copy.photoCleanupPending);
     await refreshFromServer();
   }
 

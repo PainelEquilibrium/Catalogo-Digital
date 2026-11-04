@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -15,8 +15,14 @@ const validFileBranding: Branding = {
   store: {
     name: "Arquivo Loja",
     tagline: "Catálogo de roupas do arquivo",
-    logo_url: "https://example.com/logo.png",
-    favicon_url: "https://example.com/favicon.ico",
+    logo: {
+      light: "https://example.com/logo-black.png",
+      dark: "https://example.com/logo-white.png",
+    },
+    icon: {
+      light: "/images/icone-preto-fundo-transparente.webp",
+      dark: "/images/icone-branco-fundo-transparente.webp",
+    },
   },
   theme: {
     primary_color: "#2D3A4A",
@@ -164,26 +170,66 @@ describe("deriveDarkTheme", () => {
 
 describe("branding.config.json no disco", () => {
   const configPath = join(process.cwd(), "branding.config.json");
+  const readConfig = () =>
+    parseBranding(JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>);
 
   it("tem Equilibrium, campanhas off, WhatsApp vazio, paleta e tagline de roupas", () => {
-    const raw = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
-    const branding = parseBranding(raw);
+    const branding = readConfig();
 
     expect(branding.store.name).toBe("Equilibrium Tecnologia");
     expect(branding.sections.campaigns.enabled).toBe(false);
     expect(branding.contact.whatsapp_number).toBe("");
-    expect(branding.theme.primary_color).toBe("#2D3A4A");
-    expect(branding.theme.secondary_color).toBe("#C9A66B");
-    expect(branding.theme.background_color).toBe("#F7F5F2");
+    expect(branding.theme.primary_color).toBe("#5415FF");
+    expect(branding.theme.secondary_color).toBe("#290880");
+    expect(branding.theme.background_color).toBe("#F8F8F8");
+    expect(branding.theme.surface_color).toBe("#E5E5E5");
+    expect(branding.theme.text_color).toBe("#000823");
 
     const tagline = branding.store.tagline.toLowerCase();
     expect(tagline).toMatch(/roupa|moda|catálogo|catalogo/);
     expect(tagline).not.toMatch(/plus size|tricô|trico/);
   });
+
+  it("tema escuro usa a paleta Equilibrium (fundo #000823, superfície #1E202C, texto #F8F8F8)", () => {
+    const { dark } = readConfig().theme;
+
+    expect(dark).toMatchObject({
+      background_color: "#000823",
+      surface_color: "#1E202C",
+      text_color: "#F8F8F8",
+      primary_color: "#5415FF",
+    });
+  });
+
+  it("logos e ícones apontam para arquivos reais em /public, com versão por tema", () => {
+    const { store } = readConfig();
+    const assets = [store.logo.light, store.logo.dark, store.icon.light, store.icon.dark];
+
+    expect(store.logo.light).toBe("/images/logo-black-3.webp");
+    expect(store.logo.dark).toBe("/images/logo-white-3.webp");
+    expect(store.icon.light).toBe("/images/icone-preto-fundo-transparente.webp");
+    expect(store.icon.dark).toBe("/images/icone-branco-fundo-transparente.webp");
+    for (const asset of assets) {
+      expect(existsSync(join(process.cwd(), "public", asset))).toBe(true);
+    }
+  });
+
+  it("texto sobre botão primário tem contraste AA nos dois temas", () => {
+    const branding = readConfig();
+    const light = brandingToCssVars(branding, "light");
+    const dark = brandingToCssVars(branding, "dark");
+
+    expect(
+      contrastRatio(light["--color-on-primary"]!, light["--color-primary"]!),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(dark["--color-on-primary"]!, dark["--color-primary"]!),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
 });
 
 describe("brandingToCssVars", () => {
-  it("emite as nove variáveis CSS", () => {
+  it("emite as variáveis CSS do modo light, com superfície e texto sobre primária", () => {
     const branding = parseBranding(validFileBranding);
     const vars = brandingToCssVars(branding, "light");
 
@@ -194,18 +240,22 @@ describe("brandingToCssVars", () => {
       "--color-text": branding.theme.text_color,
       "--color-accent": branding.theme.accent_color,
       "--color-surface": branding.theme.background_color,
+      "--color-on-primary": branding.theme.background_color,
+      // accent claro (#C9A66B): o texto escuro tem mais contraste que o fundo.
+      "--color-on-accent": branding.theme.text_color,
       "--radius": branding.theme.border_radius,
       "--font-heading": branding.theme.font_heading,
       "--font-body": branding.theme.font_body,
     });
   });
 
-  it("emite as nove variáveis CSS no modo dark via deriveDarkTheme", () => {
+  it("emite as variáveis CSS no modo dark via deriveDarkTheme", () => {
     const branding = parseBranding(validFileBranding);
     const dark = deriveDarkTheme(branding.theme);
     const vars = brandingToCssVars(branding, "dark");
+    const { "--color-on-primary": onPrimary, "--color-on-accent": onAccent, ...rest } = vars;
 
-    expect(vars).toEqual({
+    expect(rest).toEqual({
       "--color-primary": dark.primary_color,
       "--color-secondary": dark.secondary_color,
       "--color-background": dark.background_color,
@@ -216,6 +266,8 @@ describe("brandingToCssVars", () => {
       "--font-heading": branding.theme.font_heading,
       "--font-body": branding.theme.font_body,
     });
+    expect([dark.background_color, dark.text_color]).toContain(onPrimary);
+    expect([dark.background_color, dark.text_color]).toContain(onAccent);
   });
 });
 

@@ -157,11 +157,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-8 sm:px-6 sm:py-12">
-      <article className="grid gap-10 lg:grid-cols-2 lg:gap-12">
+    <div className="flex w-full flex-col gap-12 pb-8 sm:pb-12">
+      <article className="flex min-w-0 flex-col gap-8 sm:gap-12">
         <ProductGallery images={product.gallery} productName={product.name} />
 
-        <div className="flex flex-col gap-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 sm:px-6">
           <header className="flex flex-col gap-3">
             <Link
               href={`/colecao/${product.categorySlug}`}
@@ -225,7 +225,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </article>
 
       {related.length > 0 ? (
-        <section aria-labelledby="related-products-heading">
+        <section className="mx-auto w-full max-w-6xl px-4 sm:px-6" aria-labelledby="related-products-heading">
           <h2
             id="related-products-heading"
             className="mb-6 font-heading text-2xl font-medium tracking-tight text-[var(--color-text)] sm:text-3xl"

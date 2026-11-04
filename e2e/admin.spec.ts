@@ -1,15 +1,26 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, request } from "@playwright/test";
 import path from "node:path";
+import { copyPtBr } from "../src/lib/copy/pt-br";
 import { copyAdminPtBr } from "../src/lib/copy/admin-pt-br";
 
 const adminEmail = process.env.ADMIN_SEED_EMAIL;
 const adminPassword = process.env.ADMIN_SEED_PASSWORD;
 
-const fixturePng = path.join(__dirname, "fixtures", "ok.png");
+// Foto de teste de cadastro de produto: placeholder 800x800 (mínimo do upload).
+const fixturePhoto = path.join(
+  __dirname,
+  "..",
+  "public",
+  "images",
+  "clothes-placeholder-imagem.webp",
+);
 
 const runId = Date.now();
 const categoryName = `e2e-${runId}`;
 let categorySlug = "";
+let productEditorUrl = "";
+let categoryEditorUrl = "";
+let uploadedVariantUrls: string[] = [];
 const productName = `e2e-produto-${runId}`;
 
 function requireAdminSeedEnv(): void {
@@ -26,7 +37,26 @@ async function loginAsSeedAdmin(page: import("@playwright/test").Page) {
   await page.getByLabel(copyAdminPtBr.login.email).fill(adminEmail!);
   await page.getByLabel(copyAdminPtBr.login.password).fill(adminPassword!);
   await page.getByRole("button", { name: copyAdminPtBr.login.submit }).click();
-  await expect(page).toHaveURL(/\/admin\/produtos/);
+  await expect(page).toHaveURL(/\/admin\/produtos/, { timeout: 30_000 });
+}
+
+async function expectLoadedImages(images: import("@playwright/test").Locator) {
+  await expect(images.first()).toBeAttached();
+  for (const image of await images.all()) {
+    await image.scrollIntoViewIfNeeded();
+    await expect.poll(() => image.evaluate((node: HTMLImageElement) =>
+      node.complete && node.naturalWidth > 0)).toBe(true);
+  }
+}
+
+async function expectPublicImage(page: import("@playwright/test").Page, url: string) {
+  // A separate request context carries no cookies from the logged-in browser.
+  const anonymous = await request.newContext();
+  try {
+    const response = await anonymous.get(new URL(url, page.url()).href);
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toMatch(/^image\//);
+  } finally { await anonymous.dispose(); }
 }
 
 async function expectProductOnCollection(
@@ -39,6 +69,7 @@ async function expectProductOnCollection(
   const nameLink = page.getByRole("link", { name, exact: true });
   if (visible) {
     await expect(nameLink.first()).toBeVisible();
+    await expectLoadedImages(page.getByRole("article").filter({ hasText: name }).locator("img"));
   } else {
     await expect(nameLink).toHaveCount(0);
   }
@@ -107,6 +138,7 @@ test.describe("admin do catálogo", () => {
     await expect(
       page.getByText(copyAdminPtBr.categories.saved, { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
+    categoryEditorUrl = page.url();
     await expect(page.getByLabel(copyAdminPtBr.categories.name)).toHaveValue(
       categoryName,
     );
@@ -115,6 +147,8 @@ test.describe("admin do catálogo", () => {
   test("produto rascunho com uma foto não aparece na vitrine", async ({
     page,
   }) => {
+    // Upload envia original + 4 variantes ao Storage remoto: dá mais folga que o padrão.
+    test.setTimeout(90_000);
     await loginAsSeedAdmin(page);
     await page.goto("/admin/produtos/novo");
 
@@ -125,10 +159,12 @@ test.describe("admin do catálogo", () => {
     await page
       .getByRole("button", { name: copyAdminPtBr.products.saveDraft })
       .click();
-    await expect(page).toHaveURL(/\/admin\/produtos\/[^/]+$/);
+    await expect(page).toHaveURL(/\/admin\/produtos\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
 
-    await page.locator("#product-gallery-file").setInputFiles(fixturePng);
+    productEditorUrl = page.url();
+    await page.locator("#product-gallery-file").setInputFiles(fixturePhoto);
     await expect(page.getByRole("listitem")).toHaveCount(1, { timeout: 60_000 });
+    await expectLoadedImages(page.getByRole("listitem").locator("img"));
 
     await expectProductOnCollection(page, categorySlug, productName, false);
   });
@@ -136,6 +172,7 @@ test.describe("admin do catálogo", () => {
   test("segunda foto e publicar exibem o produto na coleção", async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     await loginAsSeedAdmin(page);
     await page.goto("/admin/produtos");
     const productRow = page.getByRole("row").filter({ hasText: productName });
@@ -143,8 +180,12 @@ test.describe("admin do catálogo", () => {
       .getByRole("link", { name: copyAdminPtBr.products.edit })
       .click();
 
-    await page.locator("#product-gallery-file").setInputFiles(fixturePng);
+    await page.locator("#product-gallery-file").setInputFiles(fixturePhoto);
     await expect(page.getByRole("listitem")).toHaveCount(2, { timeout: 60_000 });
+    await expectLoadedImages(page.getByRole("listitem").locator("img"));
+    uploadedVariantUrls = await page.getByRole("listitem").locator("img").evaluateAll(
+      (images) => images.map((image) => (image as HTMLImageElement).src),
+    );
 
     await page
       .getByRole("button", { name: copyAdminPtBr.products.publish })
@@ -155,6 +196,74 @@ test.describe("admin do catálogo", () => {
     ).toBeVisible({ timeout: 30_000 });
 
     await expectProductOnCollection(page, categorySlug, productName, true);
+  });
+
+  test("variantes reais no admin, home, galeria, OG e otimizador", async ({ page }) => {
+    await loginAsSeedAdmin(page);
+    await expectLoadedImages(page.getByRole("row").filter({ hasText: productName }).locator("img"));
+    await page.goto(`/colecao/${categorySlug}`);
+    const productLink = page.getByRole("link", { name: productName, exact: true });
+    await productLink.first().click();
+    await expectLoadedImages(page.getByRole("region", { name: copyPtBr.gallery.label }).locator("img"));
+    const og = await page.locator('meta[property="og:image"]').getAttribute("content");
+    expect(og).toContain("/object/public/product-image-variants/variants/");
+    await expectPublicImage(page, og!);
+    const variant = uploadedVariantUrls[0];
+    expect(variant).toContain("/object/public/product-image-variants/variants/");
+    await expectPublicImage(page, variant);
+    await expectPublicImage(page, `/_next/image?url=${encodeURIComponent(variant)}&w=640&q=75`);
+    await page.goto("/");
+    await expectLoadedImages(page.getByRole("article").filter({ hasText: productName }).locator("img"));
+  });
+
+  test("duas capas confirmadas; aviso de limpeza e falha preservam a última", async ({ page }) => {
+    test.setTimeout(180_000);
+    await loginAsSeedAdmin(page);
+    await page.goto(categoryEditorUrl);
+    const cover = page.locator('img[src*="product-image-variants"]');
+    await page.locator("#category-cover-file").setInputFiles(fixturePhoto);
+    await expect(page.getByText(copyAdminPtBr.upload.coverSaved, { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expectLoadedImages(cover);
+    const first = await cover.getAttribute("src");
+    // Keep the native multipart upload intact; route.fetch can omit its File payload.
+    await page.evaluate(() => {
+      const nativeFetch = window.fetch;
+      const categoryPath = window.location.pathname;
+      window.fetch = async (...args) => {
+        const [input, init] = args;
+        const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+        const pathname = new URL(input instanceof Request ? input.url : input.toString(), window.location.href).pathname;
+        if (!headers.has("next-action") || pathname !== categoryPath) return nativeFetch(...args);
+        try {
+          const response = await nativeFetch(...args);
+          const body = await response.text();
+          if (!body.includes('"ok":true')) throw new Error(`Cover upload failed: ${body}`);
+          return new Response(body.replace('"ok":true', '"ok":true,"cleanupPending":true'), {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
+        } finally {
+          window.fetch = nativeFetch;
+        }
+      };
+    });
+    await page.locator("#category-cover-file").setInputFiles(fixturePhoto);
+    await expect(page.getByText(copyAdminPtBr.upload.coverCleanupPending, { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expectLoadedImages(cover);
+    const confirmed = await cover.getAttribute("src");
+    expect(confirmed).not.toBe(first);
+    // Abort before the server: no third persisted upload is created by this fixture.
+    await page.route("**/admin/categorias/**", (route) =>
+      route.request().headers()["next-action"] ? route.abort("failed") : route.continue(), { times: 1 });
+    await page.locator("#category-cover-file").setInputFiles(fixturePhoto);
+    await expect(page.getByText(copyAdminPtBr.upload.errorGeneric, { exact: true })).toBeVisible();
+    await expect(cover).toHaveAttribute("src", confirmed!);
+    await page.reload();
+    await expect(cover).toHaveAttribute("src", confirmed!);
+    await expectLoadedImages(cover);
+    await page.goto("/");
+    await expectLoadedImages(page.locator(`a[href="/colecao/${categorySlug}"] img`));
   });
 
   test("mover para lixeira remove da vitrine; restaurar volta", async ({
@@ -176,6 +285,7 @@ test.describe("admin do catálogo", () => {
     ).toBeVisible({ timeout: 30_000 });
 
     await expectProductOnCollection(page, categorySlug, productName, false);
+    for (const url of uploadedVariantUrls) await expectPublicImage(page, url);
 
     await page.goto("/admin/lixeira?tipo=produtos");
     const trashRow = page.getByRole("row").filter({ hasText: productName });
@@ -188,6 +298,17 @@ test.describe("admin do catálogo", () => {
     ).toBeVisible({ timeout: 30_000 });
 
     await expectProductOnCollection(page, categorySlug, productName, true);
+    for (const url of uploadedVariantUrls) await expectPublicImage(page, url);
+  });
+
+  test("remove somente uma foto própria e mantém a outra carregando", async ({ page }) => {
+    await loginAsSeedAdmin(page);
+    await page.goto(productEditorUrl);
+    await page.getByRole("button", { name: copyAdminPtBr.upload.removePhoto }).last().click();
+    await expect(page.getByRole("listitem")).toHaveCount(1);
+    await page.reload();
+    await expect(page.getByRole("listitem")).toHaveCount(1);
+    await expectLoadedImages(page.getByRole("listitem").locator("img"));
   });
 
   test("sair exige login ao acessar /admin/produtos", async ({ page }) => {

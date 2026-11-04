@@ -16,7 +16,8 @@ import {
 } from "@/lib/images/upload-errors";
 import {
   removeStorageObjects,
-  storagePathsForOriginal,
+  storageObjectsForOriginal,
+  storageObjectsForPersistedImage,
   storeProcessedImage,
 } from "@/lib/images/upload";
 import { prisma } from "@/lib/prisma/client";
@@ -316,11 +317,12 @@ export async function addProductImage(
     return { ok: false, message: messageForUploadError(code) };
   }
 
-  const maxSort = await prisma.productImage.aggregate({
-    where: { productId: product.id },
-    _max: { sortOrder: true },
+  try {
+    const maxSort = await prisma.productImage.aggregate({
+      where: { productId: product.id },
+      _max: { sortOrder: true },
   });
-  const nextSort = (maxSort._max.sortOrder ?? -1) + 1;
+    const nextSort = (maxSort._max.sortOrder ?? -1) + 1;
 
   await prisma.productImage.create({
     data: {
@@ -336,6 +338,13 @@ export async function addProductImage(
       sortOrder: nextSort,
     },
   });
+
+  } catch {
+    console.error("Product image persistence failed", { productId: product.id, failure: "persistence" });
+    try { await removeStorageObjects(storageObjectsForOriginal(stored.storagePath)); }
+    catch { console.error("Product image compensation pending", { productId: product.id, storagePath: stored.storagePath }); }
+    return { ok: false, message: uploadCopy.errorGeneric };
+  }
 
   return { ok: true };
 }
@@ -375,27 +384,27 @@ export async function reorderProductImages(
 
 export async function removeProductImage(
   imageId: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<{ ok: true; cleanupPending?: boolean } | { ok: false; message: string }> {
   await requireStaff();
-
   const image = await prisma.productImage.findUnique({
     where: { id: imageId },
-    select: { id: true, storagePath: true },
+    select: { id: true, storagePath: true, thumbUrl: true, cardUrl: true, detailUrl: true, ogUrl: true },
   });
-
-  if (!image) {
-    return { ok: false, message: uploadCopy.errorImageNotFound };
-  }
-
+  if (!image) return { ok: false, message: uploadCopy.errorImageNotFound };
   try {
-    await removeStorageObjects(storagePathsForOriginal(image.storagePath));
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : uploadCopy.errorGeneric;
-    return { ok: false, message };
+    await prisma.productImage.delete({ where: { id: image.id } });
+  } catch {
+    console.error("Product image unlink failed", { imageId: image.id, failure: "persistence" });
+    return { ok: false, message: uploadCopy.errorGeneric };
   }
-
-  await prisma.productImage.delete({ where: { id: image.id } });
-
+  try {
+    const objects = storageObjectsForPersistedImage(image.storagePath, {
+      thumb: image.thumbUrl, card: image.cardUrl, detail: image.detailUrl, og: image.ogUrl,
+    });
+    if (objects.length) await removeStorageObjects(objects);
+  } catch {
+    console.error("Product image cleanup pending", { imageId: image.id, storagePath: image.storagePath });
+    return { ok: true, cleanupPending: true };
+  }
   return { ok: true };
 }

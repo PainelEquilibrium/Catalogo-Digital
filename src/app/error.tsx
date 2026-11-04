@@ -19,7 +19,7 @@ export default function ErrorPage({ reset, error: _error }: ErrorPageProps) {
       <button
         type="button"
         onClick={() => reset()}
-        className="rounded-[var(--radius)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-background)] transition-opacity hover:opacity-90"
+        className="rounded-[var(--radius)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-on-primary)] transition-opacity hover:opacity-90"
       >
         {copyPtBr.error.retry}
       </button>

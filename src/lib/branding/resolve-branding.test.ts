@@ -30,8 +30,8 @@ describe("resolveBranding", () => {
     const expected = parseBranding(fileRaw);
 
     expect(result.store.name).toBe("Equilibrium Tecnologia");
-    expect(result.theme.primary_color).toBe("#2D3A4A");
-    expect(result.theme.secondary_color).toBe("#C9A66B");
+    expect(result.theme.primary_color).toBe("#5415FF");
+    expect(result.theme.secondary_color).toBe("#290880");
     expect(result).toEqual(expected);
   });
 });

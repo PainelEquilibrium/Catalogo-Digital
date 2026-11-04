@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("searchProductIdsInCategory", () => {
+describe("searchProductIds", () => {
   it("busca inclui valores textuais de attributes (spec §9.2)", () => {
     const source = readFileSync(
       join(__dirname, "query-products.ts"),

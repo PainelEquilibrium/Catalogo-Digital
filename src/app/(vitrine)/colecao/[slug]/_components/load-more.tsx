@@ -7,7 +7,7 @@ import { ProductCard as CatalogProductCard } from "@/components/catalog/product-
 import { copyPtBr } from "@/lib/copy/pt-br";
 
 type ProductGridWithLoadMoreProps = {
-  slug: string;
+  slug?: string;
   initialItems: ProductCard[];
   initialNextCursor: string | null;
   queryString: string;
@@ -24,12 +24,14 @@ export function appendProductCards(
 }
 
 export async function fetchMoreProductCards(
-  slug: string,
+  slug: string | undefined,
   cursor: string,
   queryString: string,
 ): Promise<{ items: ProductCard[]; nextCursor: string | null }> {
   const params = new URLSearchParams(queryString);
-  params.set("slug", slug);
+  if (slug) {
+    params.set("slug", slug);
+  }
   params.set("cursor", cursor);
 
   const response = await fetch(`/api/vitrine/produtos?${params.toString()}`);

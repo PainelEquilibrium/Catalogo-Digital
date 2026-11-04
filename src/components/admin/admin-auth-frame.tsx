@@ -1,6 +1,6 @@
-import Image from "next/image";
 import type { Branding } from "@/domain/branding";
 import { PoweredByEquilibrium } from "@/components/PoweredByEquilibrium";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 
 type AdminAuthFrameProps = {
@@ -18,13 +18,10 @@ export function AdminAuthFrame({
     <div className="flex min-h-full flex-1 flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center gap-4 text-center">
-          <Image
-            src={branding.store.logo_url}
+          <BrandLogo
+            logo={branding.store.logo}
             alt={branding.store.name}
-            width={160}
-            height={48}
-            className="h-10 w-auto object-contain"
-            priority
+            className="h-10"
           />
           <h1 className="text-xl font-semibold text-foreground">{title}</h1>
         </div>

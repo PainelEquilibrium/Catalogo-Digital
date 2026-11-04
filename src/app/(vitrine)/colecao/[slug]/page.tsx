@@ -138,7 +138,7 @@ export default async function CollectionPage({
       </header>
 
       <FilterBar
-        slug={slug}
+        basePath={`/colecao/${slug}`}
         query={catalogQuery}
         filterableFields={filterableFields}
         sortOptions={branding.behavior.sort_options}
@@ -150,6 +150,7 @@ export default async function CollectionPage({
         </p>
       ) : (
         <ProductGridWithLoadMore
+          key={apiQueryString}
           slug={slug}
           initialItems={items}
           initialNextCursor={nextCursor}

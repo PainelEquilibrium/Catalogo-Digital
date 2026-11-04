@@ -2,21 +2,36 @@
   "store": {
     "name": "Equilibrium Tecnologia",
     "tagline": "Catálogo digital de roupas — descubra peças para o seu estilo",
-    "logo_url": "https://placehold.co/240x80/2d3a4a/f4f6f8?text=Equilibrium",
-    "favicon_url": "https://placehold.co/64x64/2d3a4a/f4f6f8?text=EQ"
+    "logo": {
+      "light": "/images/logo-black-3.webp",
+      "dark": "/images/logo-white-3.webp"
+    },
+    "icon": {
+      "light": "/images/icone-preto-fundo-transparente.webp",
+      "dark": "/images/icone-branco-fundo-transparente.webp"
+    }
   },
   "theme": {
-    "primary_color": "#2D3A4A",
-    "secondary_color": "#C9A66B",
-    "background_color": "#F7F5F2",
-    "text_color": "#2B2B2B",
-    "accent_color": "#C9A66B",
-    "font_heading": "Fraunces, serif",
-    "font_body": "Inter, sans-serif",
+    "primary_color": "#5415FF",
+    "secondary_color": "#290880",
+    "background_color": "#F8F8F8",
+    "surface_color": "#E5E5E5",
+    "text_color": "#000823",
+    "accent_color": "#5415FF",
+    "font_heading": "Helvetica, sans-serif",
+    "font_body": "Gilroy, sans-serif",
     "border_radius": "12px",
     "products_per_row": {
       "mobile": 2,
       "desktop": 4
+    },
+    "dark": {
+      "primary_color": "#5415FF",
+      "secondary_color": "#4C1782",
+      "background_color": "#000823",
+      "surface_color": "#1E202C",
+      "text_color": "#F8F8F8",
+      "accent_color": "#5415FF"
     },
     "dark_mode": {
       "enabled": true,
@@ -30,7 +45,7 @@
     "title": "Nosso Catálogo",
     "subtitle": "Roupas selecionadas para você explorar com calma",
     "cta_label": "Ver novidades",
-    "cta_link": "/?ordenar=novidades"
+    "cta_link": "/busca"
   },
   "sections": {
     "new_arrivals": {

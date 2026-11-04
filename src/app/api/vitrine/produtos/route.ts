@@ -4,13 +4,23 @@ import { queryCategoryBySlug } from "@/lib/catalog/query-categories";
 import {
   parseVitrineFieldsSchema,
   parseVitrineProductsRequest,
+  parseVitrineSearchRequest,
 } from "@/lib/catalog/parse-vitrine-request";
 
 export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
   const slugParam = searchParams.get("slug");
 
-  if (slugParam === null || slugParam.trim().length === 0) {
+  // Sem slug = busca geral (/busca), em todas as categorias.
+  if (slugParam === null) {
+    const parsed = parseVitrineSearchRequest(searchParams);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.message }, { status: parsed.status });
+    }
+    return NextResponse.json(await queryProducts({ query: parsed.query }));
+  }
+
+  if (slugParam.trim().length === 0) {
     return NextResponse.json(
       { error: "slug é obrigatório" },
       { status: 400 },
