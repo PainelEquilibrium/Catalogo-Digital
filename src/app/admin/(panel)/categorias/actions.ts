@@ -327,7 +327,7 @@ export async function setCategoryCover(
 
   const category = await prisma.category.findFirst({
     where: { id: categoryId, deletedAt: null },
-    select: { id: true, name: true, coverStoragePath: true, coverImageUrl: true },
+    select: { id: true, name: true, coverStoragePath: true, coverImageUrl: true, coverOgUrl: true },
   });
 
   if (!category) {
@@ -355,7 +355,7 @@ export async function setCategoryCover(
     saved = await prisma.$transaction(async (tx) => {
       const result = await tx.category.updateMany({
         where: { id: category.id, deletedAt: null, coverStoragePath: category.coverStoragePath, coverImageUrl: category.coverImageUrl },
-        data: { coverImageUrl: stored.cardUrl, coverStoragePath: stored.storagePath },
+        data: { coverImageUrl: stored.cardUrl, coverOgUrl: stored.ogUrl, coverStoragePath: stored.storagePath },
       });
       if (result.count === 1) {
         await recordAudit(tx, actor, {
@@ -363,8 +363,8 @@ export async function setCategoryCover(
           entityId: category.id,
           entityLabel: category.name,
           action: "cover_set",
-          before: { coverImageUrl: category.coverImageUrl },
-          after: { coverImageUrl: stored.cardUrl },
+          before: { coverImageUrl: category.coverImageUrl, coverOgUrl: category.coverOgUrl },
+          after: { coverImageUrl: stored.cardUrl, coverOgUrl: stored.ogUrl },
         });
       }
       return result;

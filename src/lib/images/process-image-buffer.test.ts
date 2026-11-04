@@ -26,7 +26,7 @@ async function assertWebp(buffer: Buffer, maxSide?: number) {
 }
 
 describe("processImageBuffer", () => {
-  it("ok-800 produz quatro buffers WebP e dimensões após orientação", async () => {
+  it("ok-800 produz três buffers WebP e dimensões após orientação", async () => {
     const input = await createPngBuffer(800, 800);
     const result = await processImageBuffer(input);
 
@@ -36,10 +36,19 @@ describe("processImageBuffer", () => {
     await assertWebp(result.thumb, 400);
     await assertWebp(result.card, 800);
     await assertWebp(result.detail, 1600);
-    await assertWebp(result.og);
-    const ogMeta = await sharp(result.og).metadata();
-    expect(ogMeta.width).toBe(1200);
-    expect(ogMeta.height).toBe(630);
+  });
+
+  it("og sai como jpeg, sem recorte e com maior lado de 1200", async () => {
+    const { og } = await processImageBuffer(await createPngBuffer(2000, 1000));
+    const meta = await sharp(og).metadata();
+    expect([meta.format, meta.width, meta.height]).toEqual(["jpeg", 1200, 600]);
+  });
+
+  it("PNG transparente vira JPG com fundo branco", async () => {
+    const png = await sharp({ create: { width: 900, height: 900, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const { og } = await processImageBuffer(png);
+    const { data } = await sharp(og).raw().toBuffer({ resolveWithObject: true });
+    expect([...data.subarray(0, 3)].every((v) => v >= 250)).toBe(true);
   });
 
   it("rejeita imagem com lado menor < 800 (small-100)", async () => {

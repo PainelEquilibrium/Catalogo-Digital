@@ -78,13 +78,11 @@ async function resizeMaxSide(
 }
 
 async function resizeOg(input: Buffer): Promise<Buffer> {
-  const { width, height } = IMAGE_VARIANTS.og;
+  const { maxSide, jpegQuality } = IMAGE_VARIANTS.og;
   return basePipeline(input)
-    .resize(width, height, {
-      fit: "cover",
-      position: "centre",
-    })
-    .webp()
+    .resize(maxSide, maxSide, { fit: "inside", withoutEnlargement: true })
+    .flatten({ background: "#ffffff" })
+    .jpeg({ quality: jpegQuality, mozjpeg: true })
     .toBuffer();
 }
 

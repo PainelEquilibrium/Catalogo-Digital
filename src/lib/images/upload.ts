@@ -7,7 +7,7 @@ const ORIGINAL_BUCKET = "product-images";
 const VARIANT_BUCKET = "product-image-variants";
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const ORIGINAL_PATH = new RegExp(`^originals/(${UUID})/(${UUID})$`, "i");
-const VARIANT_PATH = new RegExp(`^variants/${UUID}/${UUID}-(thumb|card|detail|og)\\.webp$`, "i");
+const VARIANT_PATH = new RegExp(`^variants/${UUID}/${UUID}-(?:(?:thumb|card|detail|og)\\.webp|og\\.jpg)$`, "i");
 const VARIANTS = ["thumb", "card", "detail", "og"] as const;
 export type StorageObjectRef = { bucket: typeof ORIGINAL_BUCKET | typeof VARIANT_BUCKET; path: string };
 type StorageClient = Awaited<ReturnType<typeof createServerSupabase>>;
@@ -29,7 +29,7 @@ function variantObjectPath(
   uuid: string,
   variant: "thumb" | "card" | "detail" | "og",
 ): string {
-  return `variants/${scopeId(scope)}/${uuid}-${variant}.webp`;
+  return `variants/${scopeId(scope)}/${uuid}-${variant}.${variant === "og" ? "jpg" : "webp"}`;
 }
 
 export function publicObjectUrl(objectPath: string): string {
@@ -44,7 +44,8 @@ export function storageObjectsForOriginal(storagePath: string): StorageObjectRef
   const [, entityId, uuid] = match;
   return [
     { bucket: ORIGINAL_BUCKET, path: storagePath },
-    ...([ORIGINAL_BUCKET, VARIANT_BUCKET] as const).flatMap((bucket) => VARIANTS.map((variant) => ({ bucket, path: `variants/${entityId}/${uuid}-${variant}.webp` }))),
+    // og.webp é legado (antes da variante JPG); apagar as duas.
+    ...([ORIGINAL_BUCKET, VARIANT_BUCKET] as const).flatMap((bucket) => [...VARIANTS.map((variant) => `${variant}.webp`), "og.jpg"].map((file) => ({ bucket, path: `variants/${entityId}/${uuid}-${file}` }))),
   ];
 }
 
@@ -119,7 +120,7 @@ export async function storeProcessedImage(input: {
   try {
     await upload({ bucket: ORIGINAL_BUCKET, path: storagePath }, input.bytes, "application/octet-stream");
     const results = await Promise.allSettled(VARIANTS.map((variant) => upload(
-      { bucket: VARIANT_BUCKET, path: variantPaths[variant] }, processed[variant], "image/webp",
+      { bucket: VARIANT_BUCKET, path: variantPaths[variant] }, processed[variant], variant === "og" ? "image/jpeg" : "image/webp",
     )));
     const failure = results.find((result) => result.status === "rejected");
     if (failure?.status === "rejected") throw failure.reason;
@@ -150,7 +151,7 @@ export function storageObjectsForPersistedImage(
   if (!objects.length || !Object.keys(urls).length) return [];
   const { url } = getSupabasePublicConfig();
   for (const [variant, persistedUrl] of Object.entries(urls)) {
-    if (!persistedUrl || !objects.some((object) => object.path.endsWith(`-${variant}.webp`) &&
+    if (!persistedUrl || !objects.some((object) => (object.path.endsWith(`-${variant}.webp`) || object.path.endsWith(`-${variant}.jpg`)) &&
       persistedUrl === `${url}/storage/v1/object/public/${object.bucket}/${object.path}`)) return [];
   }
   return objects;

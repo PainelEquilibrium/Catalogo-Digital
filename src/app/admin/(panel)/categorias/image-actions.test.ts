@@ -12,7 +12,7 @@ import { setCategoryCover } from "./actions";
 const path = "originals/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222";
 const url = `https://project.supabase.co/storage/v1/object/public/product-image-variants/${path.replace("originals/", "variants/")}-card.webp`;
 function form() { const f = new FormData(); f.set("file", new File(["test"], "test.png")); return f; }
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(requireAction).mockResolvedValue({ userId: "u", email: "a@b.c", name: "Ana", role: "manager" }); m.find.mockResolvedValue({ id: "category", name: "Cat", coverStoragePath: path, coverImageUrl: url }); m.store.mockResolvedValue({ storagePath: path.replace("22222222-", "33333333-"), cardUrl: "new-url" }); m.update.mockResolvedValue({ count: 1 }); });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(requireAction).mockResolvedValue({ userId: "u", email: "a@b.c", name: "Ana", role: "manager" }); m.find.mockResolvedValue({ id: "category", name: "Cat", coverStoragePath: path, coverImageUrl: url }); m.store.mockResolvedValue({ storagePath: path.replace("22222222-", "33333333-"), cardUrl: "new-url", ogUrl: "new-og.jpg" }); m.update.mockResolvedValue({ count: 1 }); });
 it("compensates new files when persistence fails", async () => { const error = new Error("database"); m.update.mockRejectedValue(error); expect(await setCategoryCover("category", form())).toEqual(expect.objectContaining({ ok: false })); expect(m.remove.mock.calls[0][0][0].path).toContain("33333333-"); expect(m.remove).toHaveBeenCalledTimes(1); });
 it("saves with both previous references before cleanup", async () => { m.remove.mockImplementation(() => { expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "category", deletedAt: null, coverStoragePath: path, coverImageUrl: url } })); }); expect(await setCategoryCover("category", form())).toEqual({ ok: true, coverImageUrl: "new-url" }); });
 it("keeps new cover when previous cleanup fails", async () => { m.remove.mockRejectedValue(new Error("cleanup")); const log = vi.spyOn(console, "error").mockImplementation(() => {}); expect(await setCategoryCover("category", form())).toEqual({ ok: true, coverImageUrl: "new-url", cleanupPending: true }); log.mockRestore(); });
@@ -47,7 +47,8 @@ expect(log).toHaveBeenCalledWith("Category cover persistence failed", expect.obj
 
 it("audits cover_set only when the compare-and-set wins", async () => {
   expect(await setCategoryCover("category", form())).toEqual(expect.objectContaining({ ok: true }));
-  expect(m.audit).toHaveBeenCalledWith({ data: expect.objectContaining({ actorId: "u", entityType: "category", action: "cover_set" }) });
+  expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ coverOgUrl: "new-og.jpg" }) }));
+  expect(m.audit).toHaveBeenCalledWith({ data: expect.objectContaining({ actorId: "u", entityType: "category", action: "cover_set", after: expect.objectContaining({ coverOgUrl: "new-og.jpg" }) }) });
   m.audit.mockClear(); m.update.mockResolvedValue({ count: 0 });
   await setCategoryCover("category", form());
   expect(m.audit).not.toHaveBeenCalled();

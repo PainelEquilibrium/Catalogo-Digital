@@ -17,24 +17,28 @@ beforeEach(() => {
   mocks.remove.mockResolvedValue({ error: null });
 });
 describe("image storage", () => {
-  it("routes original and four WebPs using one session and shared UUID", async () => {
+  it("routes original, three WebPs and one JPEG using one session and shared UUID", async () => {
     const result = await storeProcessedImage(input);
     expect(mocks.client).toHaveBeenCalledTimes(1);
     expect(mocks.upload).toHaveBeenCalledTimes(5);
     expect(mocks.upload.mock.calls[0]).toEqual(["product-images", result.storagePath, input.bytes, { contentType: "application/octet-stream", upsert: false }]);
     const imageId = result.storagePath.split("/")[2];
     for (const [index, variant] of ["thumb", "card", "detail", "og"].entries()) {
-      const path = `variants/${entity}/${imageId}-${variant}.webp`;
-      expect(mocks.upload.mock.calls[index + 1]).toEqual(["product-image-variants", path, expect.any(Buffer), { contentType: "image/webp", upsert: false }]);
+      const og = variant === "og";
+      const path = `variants/${entity}/${imageId}-${variant}.${og ? "jpg" : "webp"}`;
+      expect(mocks.upload.mock.calls[index + 1]).toEqual(["product-image-variants", path, expect.any(Buffer), { contentType: og ? "image/jpeg" : "image/webp", upsert: false }]);
       expect(result[`${variant}Url` as "thumbUrl"]).toBe(publicObjectUrl(path));
     }
     expect(() => publicObjectUrl(result.storagePath)).toThrow();
   });
   it("derives only strict generated paths, including legacy variants", () => {
     const objects = storageObjectsForOriginal(original);
-    expect(objects).toHaveLength(9);
+    expect(objects).toHaveLength(11);
     expect(objects[0]).toEqual({ bucket: "product-images", path: original });
-    for (const bucket of ["product-images", "product-image-variants"]) expect(objects.filter((object) => object.bucket === bucket)).toHaveLength(bucket === "product-images" ? 5 : 4);
+    for (const bucket of ["product-images", "product-image-variants"]) expect(objects.filter((object) => object.bucket === bucket)).toHaveLength(bucket === "product-images" ? 6 : 5);
+    const paths = objects.map((object) => object.path);
+    expect(paths).toContain(`variants/${entity}/${uuid}-og.jpg`);
+    expect(paths).toContain(`variants/${entity}/${uuid}-og.webp`);
     for (const path of ["seed/product", "https://evil.test/x", "originals/../x", "originals/entity/id", `${original}/../x`, "", `variants/${entity}/${uuid}-card.webp`]) expect(storageObjectsForOriginal(path)).toEqual([]);
     expect(() => publicObjectUrl(`variants/${entity}/../card.webp`)).toThrow();
   });
@@ -46,7 +50,7 @@ describe("image storage", () => {
   it("waits for in-flight uploads then compensates confirmed objects, preserving original error", async () => {
     let finish!: (value: { error: null }) => void;
     const primary = new Error("upload failed");
-    mocks.upload.mockImplementation((_bucket, path: string) => path.endsWith("-thumb.webp") ? Promise.reject(primary) : path.endsWith("-og.webp") ? new Promise((resolve) => { finish = resolve; }) : Promise.resolve({ error: null }));
+    mocks.upload.mockImplementation((_bucket, path: string) => path.endsWith("-thumb.webp") ? Promise.reject(primary) : path.endsWith("-og.jpg") ? new Promise((resolve) => { finish = resolve; }) : Promise.resolve({ error: null }));
     mocks.remove.mockRejectedValue(new Error("secret cleanup failure"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const pending = storeProcessedImage(input);
@@ -86,8 +90,20 @@ describe("image storage", () => {
 
 it("requires exact persisted URLs belonging to this project and derived objects", () => {
   const card = `https://project.supabase.co/storage/v1/object/public/product-image-variants/variants/${entity}/${uuid}-card.webp`;
-  expect(storageObjectsForPersistedImage(original, { card })).toHaveLength(9);
-  expect(storageObjectsForPersistedImage(original, { card: card.replace("product-image-variants", "product-images") })).toHaveLength(9);
+  expect(storageObjectsForPersistedImage(original, { card })).toHaveLength(11);
+  expect(storageObjectsForPersistedImage(original, { card: card.replace("product-image-variants", "product-images") })).toHaveLength(11);
   for (const invalid of [card.replace("project.supabase.co", "evil.test"), `${card}?x=1`, card.replace("-card.webp", "-og.webp"), null]) expect(storageObjectsForPersistedImage(original, { card: invalid })).toEqual([]);
   expect(storageObjectsForPersistedImage("seed/product", { card })).toEqual([]);
+});
+
+it("storageObjectsForPersistedImage reconhece og em .jpg e em .webp", () => {
+  const og = (ext: string) => `https://project.supabase.co/storage/v1/object/public/product-image-variants/variants/${entity}/${uuid}-og.${ext}`;
+  expect(storageObjectsForPersistedImage(original, { og: og("jpg") })).toHaveLength(11);
+  expect(storageObjectsForPersistedImage(original, { og: og("webp") })).toHaveLength(11);
+  expect(storageObjectsForPersistedImage(original, { og: og("png") })).toEqual([]);
+});
+
+it("URL externa de seed continua sem objetos para apagar", () => {
+  expect(storageObjectsForPersistedImage("seed/product", { og: "https://example.com/og.jpg" })).toEqual([]);
+  expect(storageObjectsForPersistedImage(original, { og: "https://example.com/og.jpg" })).toEqual([]);
 });
