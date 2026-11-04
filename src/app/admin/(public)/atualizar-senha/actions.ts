@@ -29,16 +29,17 @@ export async function changeOwnPassword(input: {
     };
   }
 
+  const actor = auditActorFor(session);
   try {
     await prisma.$transaction(async (tx) => {
       await tx.profile.update({
         where: { id: session.userId },
         data: { mustChangePassword: false },
       });
-      await recordAudit(tx, auditActorFor(session), {
+      await recordAudit(tx, actor, {
         entityType: "person",
         entityId: session.userId,
-        entityLabel: session.name.trim() || session.email,
+        entityLabel: actor.name,
         action: "password_changed",
       });
     });
