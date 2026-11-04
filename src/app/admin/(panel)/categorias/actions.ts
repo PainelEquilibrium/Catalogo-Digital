@@ -19,6 +19,7 @@ import {
   storageObjectsForPersistedImage,
   storeProcessedImage,
 } from "@/lib/images/upload";
+import { drainStorageDeletions, enqueueStorageDeletions } from "@/lib/maintenance/storage-queue";
 import { prisma } from "@/lib/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 
@@ -350,6 +351,7 @@ export async function setCategoryCover(
     return { ok: false, message: messageForUploadError(code) };
   }
 
+  const previousObjects = storageObjectsForPersistedImage(category.coverStoragePath, { card: category.coverImageUrl });
   let saved;
   try {
     saved = await prisma.$transaction(async (tx) => {
@@ -358,6 +360,7 @@ export async function setCategoryCover(
         data: { coverImageUrl: stored.cardUrl, coverOgUrl: stored.ogUrl, coverStoragePath: stored.storagePath },
       });
       if (result.count === 1) {
+        await enqueueStorageDeletions(tx, previousObjects);
         await recordAudit(tx, actor, {
           entityType: "category",
           entityId: category.id,
@@ -380,12 +383,13 @@ export async function setCategoryCover(
     catch { console.error("Category cover compensation pending", { categoryId: category.id, storagePath: stored.storagePath }); }
     return { ok: false, message: uploadCopy.errorGeneric };
   }
-  try {
-    const previousObjects = storageObjectsForPersistedImage(category.coverStoragePath, { card: category.coverImageUrl });
-    if (previousObjects.length) await removeStorageObjects(previousObjects);
-  } catch {
-    console.error("Category cover cleanup pending", { categoryId: category.id, storagePath: category.coverStoragePath });
-    return { ok: true, coverImageUrl: stored.cardUrl, cleanupPending: true };
+  if (previousObjects.length) {
+    try {
+      if ((await drainStorageDeletions({ paths: previousObjects })).failed) return { ok: true, coverImageUrl: stored.cardUrl, cleanupPending: true };
+    } catch {
+      console.error("Category cover cleanup pending", { categoryId: category.id });
+      return { ok: true, coverImageUrl: stored.cardUrl, cleanupPending: true };
+    }
   }
   return { ok: true, coverImageUrl: stored.cardUrl };
 }

@@ -21,6 +21,7 @@ import {
   storageObjectsForPersistedImage,
   storeProcessedImage,
 } from "@/lib/images/upload";
+import { drainStorageDeletions, enqueueStorageDeletions } from "@/lib/maintenance/storage-queue";
 import { prisma } from "@/lib/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 
@@ -452,9 +453,13 @@ export async function removeProductImage(
     select: { id: true, product: { select: { id: true, name: true } }, storagePath: true, thumbUrl: true, cardUrl: true, detailUrl: true, ogUrl: true },
   });
   if (!image) return { ok: false, message: uploadCopy.errorImageNotFound };
+  const objects = storageObjectsForPersistedImage(image.storagePath, {
+    thumb: image.thumbUrl, card: image.cardUrl, detail: image.detailUrl, og: image.ogUrl,
+  });
   try {
     await prisma.$transaction(async (tx) => {
       await tx.productImage.delete({ where: { id: image.id } });
+      await enqueueStorageDeletions(tx, objects);
       await recordAudit(tx, actor, {
         entityType: "image",
         entityId: image.id,
@@ -467,13 +472,11 @@ export async function removeProductImage(
     console.error("Product image unlink failed", { imageId: image.id, failure: "persistence" });
     return { ok: false, message: uploadCopy.errorGeneric };
   }
+  if (!objects.length) return { ok: true };
   try {
-    const objects = storageObjectsForPersistedImage(image.storagePath, {
-      thumb: image.thumbUrl, card: image.cardUrl, detail: image.detailUrl, og: image.ogUrl,
-    });
-    if (objects.length) await removeStorageObjects(objects);
+    if ((await drainStorageDeletions({ paths: objects })).failed) return { ok: true, cleanupPending: true };
   } catch {
-    console.error("Product image cleanup pending", { imageId: image.id, storagePath: image.storagePath });
+    console.error("Product image cleanup pending", { imageId: image.id });
     return { ok: true, cleanupPending: true };
   }
   return { ok: true };
