@@ -294,7 +294,7 @@ async function seedOwner(prisma: PrismaClient) {
   await prisma.profile.upsert({
     where: { id: userId },
     create: { id: userId, email, role: "owner" },
-    update: { email, role: "owner" },
+    update: { email, role: "owner", isActive: true, mustChangePassword: false },
   });
   const row = await prisma.profile.findUnique({ where: { id: userId } });
   if (row?.role !== "owner")

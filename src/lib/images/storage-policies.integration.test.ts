@@ -160,7 +160,7 @@ describe.skipIf(!enabled)("Storage policies (real DEV, opt-in)", () => {
   it("matches bucket and effective policy metadata", async () => {
     const { rows } = await db.query("SELECT id, name, public, file_size_limit, allowed_mime_types FROM storage.buckets WHERE id = ANY($1)", [[privateBucket, publicBucket]]);
     expect(rows.find((row) => row.id === privateBucket)).toMatchObject({ public: false, name: privateBucket });
-    expect(rows.find((row) => row.id === publicBucket)).toMatchObject({ public: true, name: publicBucket, allowed_mime_types: ["image/webp"], file_size_limit: null });
+    expect(rows.find((row) => row.id === publicBucket)).toMatchObject({ public: true, name: publicBucket, allowed_mime_types: ["image/webp", "image/jpeg"], file_size_limit: null });
     const policies = await db.query("SELECT policyname, cmd, roles, qual, with_check FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects'");
     expect(policies.rows.some((row) => row.policyname === "product_images_staff_objects")).toBe(false);
     expect(policies.rows.some((row) => row.cmd === "SELECT" && row.roles.includes("anon") && row.qual.includes("'product-images'") && row.qual.includes("'variants'"))).toBe(true);

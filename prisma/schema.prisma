@@ -11,6 +11,9 @@ model Profile {
   id        String   @id @db.Uuid
   email     String
   role      String   @default("manager")
+  name      String   @default("")
+  isActive  Boolean  @default(true) @map("is_active")
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   invitedBy String?  @map("invited_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -39,6 +42,7 @@ model Category {
   description   String?
   coverImageUrl     String? @map("cover_image_url")
   coverStoragePath  String? @map("cover_storage_path")
+  coverOgUrl        String? @map("cover_og_url")
   fieldsSchema      Json    @default("[]") @map("fields_schema")
   sortOrder     Int       @default(0) @map("sort_order")
   isActive      Boolean   @default(true) @map("is_active")
@@ -56,6 +60,7 @@ model Product {
   categoryId String    @map("category_id") @db.Uuid
   name       String
   slug       String
+  description String?
   price      Decimal?  @db.Decimal(10, 2)
   promoPrice Decimal?  @map("promo_price") @db.Decimal(10, 2)
   status     String    @default("draft")
@@ -90,4 +95,33 @@ model ProductImage {
 
   @@index([productId, sortOrder])
   @@map("product_images")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId     String?  @map("actor_id") @db.Uuid
+  actorName   String   @map("actor_name")
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  entityLabel String   @map("entity_label")
+  action      String
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, createdAt(sort: Desc)])
+  @@map("audit_log")
+}
+
+model StorageDeletion {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bucket    String
+  path      String
+  attempts  Int      @default(0)
+  lastError String?  @map("last_error")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([bucket, path])
+  @@map("storage_deletions")
 }
