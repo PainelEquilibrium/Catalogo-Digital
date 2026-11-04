@@ -1,5 +1,6 @@
 "use server";
 
+import { auditActorFor, recordAudit } from "@/lib/audit/record";
 import { createServerSupabase, requireSignedInProfile } from "@/lib/auth/server";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 import { prisma } from "@/lib/prisma/client";
@@ -28,10 +29,22 @@ export async function changeOwnPassword(input: {
     };
   }
 
-  // Auditoria entra na Task 4; aqui só a flag cai.
-  await prisma.profile.update({
-    where: { id: session.userId },
-    data: { mustChangePassword: false },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.profile.update({
+        where: { id: session.userId },
+        data: { mustChangePassword: false },
+      });
+      await recordAudit(tx, auditActorFor(session), {
+        entityType: "person",
+        entityId: session.userId,
+        entityLabel: session.name.trim() || session.email,
+        action: "password_changed",
+      });
+    });
+  } catch {
+    console.error("Password change flag persistence failed", { failure: "persistence" });
+    return { ok: false, message: copy.errorGeneric };
+  }
   return { ok: true };
 }

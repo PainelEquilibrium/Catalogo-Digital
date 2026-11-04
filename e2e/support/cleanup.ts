@@ -37,6 +37,7 @@ export async function createE2eAccount(
 }
 
 export async function deleteE2eAccount(id: string): Promise<void> {
+  await db.query("delete from audit_log where actor_id = $1", [id]);
   await db.query("delete from profiles where id = $1", [id]);
   await authAdmin().deleteUser(id);
 }

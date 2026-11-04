@@ -1,6 +1,7 @@
 "use server";
 
-import { requireStaff } from "@/lib/auth/server";
+import { auditActorFor, recordAudit } from "@/lib/audit/record";
+import { requireAction, requireStaff } from "@/lib/auth/server";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 import { prisma } from "@/lib/prisma/client";
 
@@ -46,11 +47,11 @@ export async function queryTrash(): Promise<{
 export async function restoreProduct(
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const product = await prisma.product.findFirst({
     where: { id, deletedAt: { not: null } },
-    select: { id: true, slug: true },
+    select: { id: true, name: true, slug: true },
   });
 
   if (!product) {
@@ -70,9 +71,15 @@ export async function restoreProduct(
     return { ok: false, message: copy.errorRestoreSlugConflict };
   }
 
-  await prisma.product.update({
-    where: { id: product.id },
-    data: { deletedAt: null },
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({ where: { id: product.id }, data: { deletedAt: null } });
+    await recordAudit(tx, actor, {
+      entityType: "product",
+      entityId: product.id,
+      entityLabel: product.name,
+      action: "restore",
+      after: { name: product.name, slug: product.slug },
+    });
   });
 
   return { ok: true };
@@ -81,11 +88,11 @@ export async function restoreProduct(
 export async function restoreCategory(
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const category = await prisma.category.findFirst({
     where: { id, deletedAt: { not: null } },
-    select: { id: true, slug: true },
+    select: { id: true, name: true, slug: true },
   });
 
   if (!category) {
@@ -105,9 +112,15 @@ export async function restoreCategory(
     return { ok: false, message: copy.errorRestoreSlugConflict };
   }
 
-  await prisma.category.update({
-    where: { id: category.id },
-    data: { deletedAt: null },
+  await prisma.$transaction(async (tx) => {
+    await tx.category.update({ where: { id: category.id }, data: { deletedAt: null } });
+    await recordAudit(tx, actor, {
+      entityType: "category",
+      entityId: category.id,
+      entityLabel: category.name,
+      action: "restore",
+      after: { name: category.name, slug: category.slug },
+    });
   });
 
   return { ok: true };

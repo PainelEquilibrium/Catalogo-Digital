@@ -6,7 +6,8 @@ import {
   type FieldType,
 } from "@/domain/category-fields";
 import { slugFromName } from "@/domain/product-write";
-import { requireStaff } from "@/lib/auth/server";
+import { auditActorFor, recordAudit } from "@/lib/audit/record";
+import { requireAction } from "@/lib/auth/server";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 import {
   mapUploadError,
@@ -101,6 +102,24 @@ async function isSlugTaken(slug: string, excludeId: string | null): Promise<bool
   return existing != null;
 }
 
+function categorySnapshot(c: {
+  name: string;
+  slug: string;
+  description: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  fieldsSchema: unknown;
+}) {
+  return {
+    name: c.name,
+    slug: c.slug,
+    description: c.description,
+    isActive: c.isActive,
+    sortOrder: c.sortOrder,
+    fieldsSchema: c.fieldsSchema,
+  };
+}
+
 export async function saveCategory(input: {
   id: string | null;
   name: string;
@@ -110,7 +129,7 @@ export async function saveCategory(input: {
   sortOrder: number;
   fields: SaveFieldInput[];
 }): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const name = input.name.trim();
   const slug = input.slug.trim();
@@ -136,7 +155,6 @@ export async function saveCategory(input: {
   if (input.id) {
     const current = await prisma.category.findFirst({
       where: { id: input.id, deletedAt: null },
-      select: { fieldsSchema: true },
     });
     if (!current) {
       return { ok: false, message: copy.errorNotFound };
@@ -157,8 +175,34 @@ export async function saveCategory(input: {
       return { ok: false, message: copy.errorFieldKeyRenamed };
     }
 
-    await prisma.category.update({
-      where: { id: input.id },
+    const categoryId = input.id;
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.category.update({
+        where: { id: categoryId },
+        data: {
+          name,
+          slug,
+          description,
+          isActive: input.isActive,
+          sortOrder: input.sortOrder,
+          fieldsSchema: fieldsSchema as Prisma.InputJsonValue,
+        },
+      });
+      await recordAudit(tx, actor, {
+        entityType: "category",
+        entityId: row.id,
+        entityLabel: name,
+        action: "update",
+        before: categorySnapshot(current),
+        after: categorySnapshot(row),
+      });
+    });
+
+    return { ok: true, id: categoryId };
+  }
+
+  const id = await prisma.$transaction(async (tx) => {
+    const row = await tx.category.create({
       data: {
         name,
         slug,
@@ -168,29 +212,23 @@ export async function saveCategory(input: {
         fieldsSchema: fieldsSchema as Prisma.InputJsonValue,
       },
     });
-
-    return { ok: true, id: input.id };
-  }
-
-  const created = await prisma.category.create({
-    data: {
-      name,
-      slug,
-      description,
-      isActive: input.isActive,
-      sortOrder: input.sortOrder,
-      fieldsSchema: fieldsSchema as Prisma.InputJsonValue,
-    },
-    select: { id: true },
+    await recordAudit(tx, actor, {
+      entityType: "category",
+      entityId: row.id,
+      entityLabel: name,
+      action: "create",
+      after: categorySnapshot(row),
+    });
+    return row.id;
   });
 
-  return { ok: true, id: created.id };
+  return { ok: true, id };
 }
 
 export async function duplicateCategory(
   id: string,
 ): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const source = await prisma.category.findFirst({
     where: { id, deletedAt: null },
@@ -207,18 +245,28 @@ export async function duplicateCategory(
   const taken = new Set(slugRows.map((row) => row.slug));
   const slug = suggestCopySlug(source.slug, taken);
 
-  const created = await prisma.category.create({
-    data: {
-      name: `${source.name}${copy.copySuffix}`,
-      slug,
-      description: source.description,
-      isActive: source.isActive,
-      sortOrder: source.sortOrder,
-      fieldsSchema: source.fieldsSchema as Prisma.InputJsonValue,
-      coverImageUrl: null,
-      coverStoragePath: null,
-    },
-    select: { id: true },
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.category.create({
+      data: {
+        name: `${source.name}${copy.copySuffix}`,
+        slug,
+        description: source.description,
+        isActive: source.isActive,
+        sortOrder: source.sortOrder,
+        fieldsSchema: source.fieldsSchema as Prisma.InputJsonValue,
+        coverImageUrl: null,
+        coverStoragePath: null,
+      },
+    });
+    await recordAudit(tx, actor, {
+      entityType: "category",
+      entityId: row.id,
+      entityLabel: row.name,
+      action: "create",
+      before: { duplicatedFrom: source.id },
+      after: categorySnapshot(row),
+    });
+    return row;
   });
 
   return { ok: true, id: created.id };
@@ -227,12 +275,14 @@ export async function duplicateCategory(
 export async function trashCategory(
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const category = await prisma.category.findFirst({
     where: { id, deletedAt: null },
     select: {
       id: true,
+      name: true,
+      slug: true,
       _count: {
         select: {
           products: {
@@ -252,9 +302,18 @@ export async function trashCategory(
     return { ok: false, message: copy.errorHasActiveProducts };
   }
 
-  await prisma.category.update({
-    where: { id: category.id },
-    data: { deletedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    await tx.category.update({
+      where: { id: category.id },
+      data: { deletedAt: new Date() },
+    });
+    await recordAudit(tx, actor, {
+      entityType: "category",
+      entityId: category.id,
+      entityLabel: category.name,
+      action: "trash",
+      before: { name: category.name, slug: category.slug },
+    });
   });
 
   return { ok: true };
@@ -264,11 +323,11 @@ export async function setCategoryCover(
   categoryId: string,
   formData: FormData,
 ): Promise<{ ok: true; coverImageUrl: string; cleanupPending?: boolean } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const category = await prisma.category.findFirst({
     where: { id: categoryId, deletedAt: null },
-    select: { id: true, coverStoragePath: true, coverImageUrl: true },
+    select: { id: true, name: true, coverStoragePath: true, coverImageUrl: true },
   });
 
   if (!category) {
@@ -293,9 +352,22 @@ export async function setCategoryCover(
 
   let saved;
   try {
-    saved = await prisma.category.updateMany({
-      where: { id: category.id, deletedAt: null, coverStoragePath: category.coverStoragePath, coverImageUrl: category.coverImageUrl },
-      data: { coverImageUrl: stored.cardUrl, coverStoragePath: stored.storagePath },
+    saved = await prisma.$transaction(async (tx) => {
+      const result = await tx.category.updateMany({
+        where: { id: category.id, deletedAt: null, coverStoragePath: category.coverStoragePath, coverImageUrl: category.coverImageUrl },
+        data: { coverImageUrl: stored.cardUrl, coverStoragePath: stored.storagePath },
+      });
+      if (result.count === 1) {
+        await recordAudit(tx, actor, {
+          entityType: "category",
+          entityId: category.id,
+          entityLabel: category.name,
+          action: "cover_set",
+          before: { coverImageUrl: category.coverImageUrl },
+          after: { coverImageUrl: stored.cardUrl },
+        });
+      }
+      return result;
     });
   } catch {
     console.error("Category cover persistence failed", { categoryId: category.id, failure: "persistence" });

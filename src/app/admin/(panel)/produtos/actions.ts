@@ -8,7 +8,8 @@ import {
   publishBlockers,
   slugFromName,
 } from "@/domain/product-write";
-import { requireStaff } from "@/lib/auth/server";
+import { auditActorFor, recordAudit } from "@/lib/audit/record";
+import { requireAction } from "@/lib/auth/server";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 import {
   mapUploadError,
@@ -101,6 +102,26 @@ async function isProductSlugTaken(
   return existing != null;
 }
 
+function productSnapshot(p: {
+  name: string;
+  slug: string;
+  status: string;
+  price: unknown;
+  promoPrice: unknown;
+  categoryId: string;
+  attributes: unknown;
+}) {
+  return {
+    name: p.name,
+    slug: p.slug,
+    status: p.status,
+    price: p.price,
+    promoPrice: p.promoPrice,
+    categoryId: p.categoryId,
+    attributes: p.attributes,
+  };
+}
+
 function mergeAttributes(
   previous: Record<string, unknown>,
   nextFieldKeys: readonly string[],
@@ -125,7 +146,7 @@ export async function saveProduct(input: {
   | { ok: true; id: string }
   | { ok: false; message: string; needsCategoryConfirm?: boolean }
 > {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const name = input.name.trim();
   const slug = input.slug.trim();
@@ -154,11 +175,17 @@ export async function saveProduct(input: {
   let previousAttributes: Record<string, unknown> = {};
   let previousCategoryId: string | null = null;
   let imageCount = 0;
+  let before: ReturnType<typeof productSnapshot> | null = null;
 
   if (input.id) {
     const existing = await prisma.product.findFirst({
       where: { id: input.id, deletedAt: null },
       select: {
+        name: true,
+        slug: true,
+        status: true,
+        price: true,
+        promoPrice: true,
         categoryId: true,
         attributes: true,
         _count: { select: { images: true } },
@@ -169,6 +196,7 @@ export async function saveProduct(input: {
       return { ok: false, message: copy.errorNotFound };
     }
 
+    before = productSnapshot(existing);
     previousCategoryId = existing.categoryId;
     previousAttributes =
       existing.attributes != null &&
@@ -239,20 +267,26 @@ export async function saveProduct(input: {
   };
 
   try {
-    if (input.id) {
-      await prisma.product.update({
-        where: { id: input.id },
-        data,
+    const id = await prisma.$transaction(async (tx) => {
+      const row = input.id
+        ? await tx.product.update({ where: { id: input.id }, data })
+        : await tx.product.create({ data });
+      await recordAudit(tx, actor, {
+        entityType: "product",
+        entityId: row.id,
+        entityLabel: name,
+        action: !before
+          ? "create"
+          : status === "published" && before.status !== "published"
+            ? "publish"
+            : "update",
+        before,
+        after: productSnapshot(row),
       });
-      return { ok: true, id: input.id };
-    }
-
-    const created = await prisma.product.create({
-      data,
-      select: { id: true },
+      return row.id;
     });
 
-    return { ok: true, id: created.id };
+    return { ok: true, id };
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -267,20 +301,29 @@ export async function saveProduct(input: {
 export async function trashProduct(
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const product = await prisma.product.findFirst({
     where: { id, deletedAt: null },
-    select: { id: true },
+    select: { id: true, name: true, slug: true, status: true },
   });
 
   if (!product) {
     return { ok: false, message: copy.errorNotFound };
   }
 
-  await prisma.product.update({
-    where: { id: product.id },
-    data: { deletedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id: product.id },
+      data: { deletedAt: new Date() },
+    });
+    await recordAudit(tx, actor, {
+      entityType: "product",
+      entityId: product.id,
+      entityLabel: product.name,
+      action: "trash",
+      before: { name: product.name, slug: product.slug, status: product.status },
+    });
   });
 
   return { ok: true };
@@ -290,11 +333,11 @@ export async function addProductImage(
   productId: string,
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const product = await prisma.product.findFirst({
     where: { id: productId, deletedAt: null },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
   if (!product) {
@@ -318,27 +361,35 @@ export async function addProductImage(
   }
 
   try {
-    const maxSort = await prisma.productImage.aggregate({
-      where: { productId: product.id },
-      _max: { sortOrder: true },
-  });
-    const nextSort = (maxSort._max.sortOrder ?? -1) + 1;
+    await prisma.$transaction(async (tx) => {
+      const maxSort = await tx.productImage.aggregate({
+        where: { productId: product.id },
+        _max: { sortOrder: true },
+      });
+      const nextSort = (maxSort._max.sortOrder ?? -1) + 1;
 
-  await prisma.productImage.create({
-    data: {
-      productId: product.id,
-      storagePath: stored.storagePath,
-      thumbUrl: stored.thumbUrl,
-      cardUrl: stored.cardUrl,
-      detailUrl: stored.detailUrl,
-      ogUrl: stored.ogUrl,
-      width: stored.width,
-      height: stored.height,
-      sizeKb: stored.sizeKb,
-      sortOrder: nextSort,
-    },
-  });
-
+      const image = await tx.productImage.create({
+        data: {
+          productId: product.id,
+          storagePath: stored.storagePath,
+          thumbUrl: stored.thumbUrl,
+          cardUrl: stored.cardUrl,
+          detailUrl: stored.detailUrl,
+          ogUrl: stored.ogUrl,
+          width: stored.width,
+          height: stored.height,
+          sizeKb: stored.sizeKb,
+          sortOrder: nextSort,
+        },
+      });
+      await recordAudit(tx, actor, {
+        entityType: "image",
+        entityId: image.id,
+        entityLabel: product.name,
+        action: "image_add",
+        after: { productId: product.id, sortOrder: nextSort },
+      });
+    });
   } catch {
     console.error("Product image persistence failed", { productId: product.id, failure: "persistence" });
     try { await removeStorageObjects(storageObjectsForOriginal(stored.storagePath)); }
@@ -353,7 +404,7 @@ export async function reorderProductImages(
   productId: string,
   orderedIds: string[],
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
 
   const images = await prisma.productImage.findMany({
     where: { productId },
@@ -370,14 +421,24 @@ export async function reorderProductImages(
     return { ok: false, message: uploadCopy.errorReorderInvalid };
   }
 
-  await prisma.$transaction(
-    orderedIds.map((id, index) =>
-      prisma.productImage.update({
-        where: { id },
-        data: { sortOrder: index },
-      }),
-    ),
-  );
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { name: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    for (const [index, id] of orderedIds.entries()) {
+      await tx.productImage.update({ where: { id }, data: { sortOrder: index } });
+    }
+    await recordAudit(tx, actor, {
+      entityType: "image",
+      entityId: productId,
+      entityLabel: product?.name ?? productId,
+      action: "image_reorder",
+      before: { order: images.map((row) => row.id) },
+      after: { order: orderedIds },
+    });
+  });
 
   return { ok: true };
 }
@@ -385,14 +446,23 @@ export async function reorderProductImages(
 export async function removeProductImage(
   imageId: string,
 ): Promise<{ ok: true; cleanupPending?: boolean } | { ok: false; message: string }> {
-  await requireStaff();
+  const actor = auditActorFor(await requireAction("catalog"));
   const image = await prisma.productImage.findUnique({
     where: { id: imageId },
-    select: { id: true, storagePath: true, thumbUrl: true, cardUrl: true, detailUrl: true, ogUrl: true },
+    select: { id: true, product: { select: { id: true, name: true } }, storagePath: true, thumbUrl: true, cardUrl: true, detailUrl: true, ogUrl: true },
   });
   if (!image) return { ok: false, message: uploadCopy.errorImageNotFound };
   try {
-    await prisma.productImage.delete({ where: { id: image.id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.productImage.delete({ where: { id: image.id } });
+      await recordAudit(tx, actor, {
+        entityType: "image",
+        entityId: image.id,
+        entityLabel: image.product.name,
+        action: "image_remove",
+        before: { productId: image.product.id },
+      });
+    });
   } catch {
     console.error("Product image unlink failed", { imageId: image.id, failure: "persistence" });
     return { ok: false, message: uploadCopy.errorGeneric };
