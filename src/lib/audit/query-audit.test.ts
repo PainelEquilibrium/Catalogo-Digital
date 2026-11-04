@@ -20,8 +20,8 @@ describe("parseAuditFilters", () => {
     expect(f.until?.toISOString()).toBe("2026-11-05T03:00:00.000Z");
   });
 
-  it("round-trip do cursor", () => {
-    const at = new Date("2026-11-04T12:00:00.000Z");
+  it("round-trip do cursor preserva microssegundos", () => {
+    const at = "2026-11-04T12:00:00.123456Z";
     const id = "11111111-1111-4111-8111-111111111111";
     const f = parseAuditFilters(new URLSearchParams({ cursor: encodeAuditCursor({ createdAt: at, id }) }));
     expect(f.cursor).toEqual({ createdAt: at, id });
