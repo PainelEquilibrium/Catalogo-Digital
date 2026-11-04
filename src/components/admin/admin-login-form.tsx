@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -70,14 +69,6 @@ export function AdminLoginForm() {
       <Button type="submit" className="w-full" disabled={submitting}>
         {copyAdminPtBr.login.submit}
       </Button>
-      <p className="text-center text-sm">
-        <Link
-          href="/admin/recuperar-senha"
-          className="text-foreground underline-offset-4 hover:underline"
-        >
-          {copyAdminPtBr.login.forgot}
-        </Link>
-      </p>
       <p className="text-center text-sm text-muted-foreground">
         {copyAdminPtBr.login.noSignup}
       </p>

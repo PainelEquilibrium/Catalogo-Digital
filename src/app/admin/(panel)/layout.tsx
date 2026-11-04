@@ -28,6 +28,9 @@ export default async function AdminPanelLayout({
     if (error.code === "unauthenticated") {
       redirect("/admin/login");
     }
+    if (error.code === "password_change_required") {
+      redirect("/admin/atualizar-senha");
+    }
     if (isForbiddenPage(pathname)) {
       return <div className="mx-auto w-full max-w-lg px-4 py-10">{children}</div>;
     }

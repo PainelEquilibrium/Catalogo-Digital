@@ -63,6 +63,12 @@ export function AdminChrome({ branding, children }: AdminChromeProps) {
           {branding.theme.dark_mode.enabled && branding.theme.dark_mode.show_toggle ? (
             <AnimatedThemeToggler className="text-foreground hover:bg-accent focus-visible:outline-ring" />
           ) : null}
+          <Link
+            href="/admin/atualizar-senha"
+            className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          >
+            {copyAdminPtBr.chrome.changePassword}
+          </Link>
           <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
             {copyAdminPtBr.chrome.signOut}
           </Button>

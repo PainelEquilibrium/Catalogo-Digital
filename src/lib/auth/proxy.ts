@@ -4,7 +4,6 @@ import { getSupabasePublicConfig } from "@/lib/auth/supabase-env";
 
 const ADMIN_AUTH_PATHS = new Set([
   "/admin/login",
-  "/admin/recuperar-senha",
   "/admin/atualizar-senha",
 ]);
 
