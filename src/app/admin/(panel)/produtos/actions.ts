@@ -111,6 +111,7 @@ function productSnapshot(p: {
   promoPrice: unknown;
   categoryId: string;
   attributes: unknown;
+  description: string | null;
 }) {
   return {
     name: p.name,
@@ -120,6 +121,7 @@ function productSnapshot(p: {
     promoPrice: p.promoPrice,
     categoryId: p.categoryId,
     attributes: p.attributes,
+    description: p.description,
   };
 }
 
@@ -139,6 +141,7 @@ export async function saveProduct(input: {
   slug: string;
   price: number | null;
   promoPrice: number | null;
+  description: string | null;
   isFeatured: boolean;
   attributes: Record<string, unknown>;
   intent: "draft" | "publish";
@@ -152,6 +155,7 @@ export async function saveProduct(input: {
   const name = input.name.trim();
   const slug = input.slug.trim();
   const categoryId = input.categoryId.trim();
+  const description = input.description?.trim() || null;
 
   if (!name) {
     return { ok: false, message: copy.errorNameRequired };
@@ -189,6 +193,7 @@ export async function saveProduct(input: {
         promoPrice: true,
         categoryId: true,
         attributes: true,
+        description: true,
         _count: { select: { images: true } },
       },
     });
@@ -262,6 +267,7 @@ export async function saveProduct(input: {
     slug,
     price: input.price,
     promoPrice: input.promoPrice,
+    description,
     isFeatured: input.isFeatured,
     status,
     attributes: attributes as Prisma.InputJsonValue,

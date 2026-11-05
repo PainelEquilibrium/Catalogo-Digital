@@ -183,6 +183,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
             />
           </header>
 
+          {product.description ? (
+            <p className="whitespace-pre-line text-base leading-relaxed text-[var(--color-text)]">
+              {product.description}
+            </p>
+          ) : null}
+
           {visibleAttributes.length > 0 ? (
             <dl className="grid gap-3 border-t border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] pt-6">
               {visibleAttributes.map((attribute) => (

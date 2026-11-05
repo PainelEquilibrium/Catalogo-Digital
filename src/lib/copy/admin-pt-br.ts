@@ -73,6 +73,8 @@ export const copyAdminPtBr = {
     promoPrice: "Preço promocional",
     priceOptional: "Deixe em branco para “Sob consulta” na vitrine.",
     isFeatured: "Destaque na vitrine",
+    description: "Descrição",
+    descriptionHint: "Opcional. Aparece na página do produto e entra na busca.",
     attributesTitle: "Detalhes do produto",
     confirmCategoryChangeTitle: "Trocar categoria?",
     confirmCategoryChangeDescription:

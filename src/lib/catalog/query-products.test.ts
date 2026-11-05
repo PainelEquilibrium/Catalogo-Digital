@@ -11,4 +11,12 @@ describe("searchProductIds", () => {
     expect(source).toContain("p.attributes::text");
     expect(source).toContain("extensions.unaccent(p.attributes::text)");
   });
+
+  it("busca inclui a descrição do produto (spec §7.4)", () => {
+    const source = readFileSync(
+      join(__dirname, "query-products.ts"),
+      "utf-8",
+    );
+    expect(source).toContain("extensions.unaccent(COALESCE(p.description, ''))");
+  });
 });

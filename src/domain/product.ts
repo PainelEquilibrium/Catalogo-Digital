@@ -43,6 +43,7 @@ export type ProductDetailAttribute = {
 };
 
 export type ProductDetail = ProductCard & {
+  description: string | null;
   attributes: ProductDetailAttribute[];
   gallery: ProductGalleryImage[];
   categoryId: string;

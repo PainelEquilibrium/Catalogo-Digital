@@ -72,6 +72,7 @@ export async function queryProductBySlug(
 
   return {
     ...card,
+    description: product.description,
     attributes: buildDetailAttributes(fieldsSchema, attributes),
     gallery: product.images,
     categoryId: product.category.id,

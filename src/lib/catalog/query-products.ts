@@ -59,6 +59,7 @@ async function searchProductIds(
         extensions.unaccent(p.name) ILIKE extensions.unaccent(${pattern})
         OR extensions.unaccent(p.slug) ILIKE extensions.unaccent(${pattern})
         OR extensions.unaccent(p.attributes::text) ILIKE extensions.unaccent(${pattern})
+        OR extensions.unaccent(COALESCE(p.description, '')) ILIKE extensions.unaccent(${pattern})
       )
   `);
   return rows.map((row) => row.id);

@@ -22,6 +22,8 @@ let productEditorUrl = "";
 let categoryEditorUrl = "";
 let uploadedVariantUrls: string[] = [];
 const productName = `e2e-produto-${runId}`;
+const descriptionFragment = `Lavagem a frio ${runId}`;
+const productDescription = `Modelagem ampla em linho natural.\n${descriptionFragment}.`;
 
 function requireAdminSeedEnv(): void {
   if (!adminEmail?.trim() || !adminPassword?.trim()) {
@@ -196,6 +198,27 @@ test.describe("admin do catálogo", () => {
     ).toBeVisible({ timeout: 30_000 });
 
     await expectProductOnCollection(page, categorySlug, productName, true);
+  });
+
+  test("descrição salva aparece no produto e entra na busca", async ({ page }) => {
+    await loginAsSeedAdmin(page);
+    await page.goto(productEditorUrl);
+    await page.getByLabel(copyAdminPtBr.products.description).fill(productDescription);
+    await page
+      .getByRole("button", { name: copyAdminPtBr.products.publish })
+      .click();
+    await expect(
+      page.getByText(copyAdminPtBr.products.published, { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+
+    await page.goto(`/colecao/${categorySlug}`);
+    await page.getByRole("link", { name: productName, exact: true }).first().click();
+    await expect(page.getByText(descriptionFragment, { exact: false })).toBeVisible();
+
+    await page.goto(`/busca?q=${encodeURIComponent(descriptionFragment)}`);
+    await expect(
+      page.getByRole("link", { name: productName, exact: true }).first(),
+    ).toBeVisible();
   });
 
   test("variantes reais no admin, home, galeria, OG e otimizador", async ({ page }) => {

@@ -59,6 +59,7 @@ export default async function AdminEditProductPage({ params }: PageProps) {
           slug: product.slug,
           price: decimalToNumber(product.price),
           promoPrice: decimalToNumber(product.promoPrice),
+          description: product.description,
           isFeatured: product.isFeatured,
           status: product.status,
           attributes,

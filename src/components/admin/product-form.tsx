@@ -49,6 +49,7 @@ export type ProductFormInitial = {
   slug: string;
   price: number | null;
   promoPrice: number | null;
+  description: string | null;
   isFeatured: boolean;
   status: string;
   attributes: Record<string, unknown>;
@@ -92,6 +93,7 @@ export function ProductForm({ categories, initial = null }: ProductFormProps) {
   const [promoPrice, setPromoPrice] = useState(
     initial?.promoPrice != null ? String(initial.promoPrice) : "",
   );
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [isFeatured, setIsFeatured] = useState(initial?.isFeatured ?? false);
   const [attributes, setAttributes] = useState<Record<string, unknown>>(
     initial?.attributes ?? {},
@@ -150,6 +152,7 @@ export function ProductForm({ categories, initial = null }: ProductFormProps) {
       slug,
       price: parseOptionalNumber(price),
       promoPrice: parseOptionalNumber(promoPrice),
+      description,
       isFeatured,
       attributes: visibleAttributes,
       intent,
@@ -266,6 +269,17 @@ export function ProductForm({ categories, initial = null }: ProductFormProps) {
               className="min-h-11"
             />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="product-description">{copy.description}</Label>
+          <Textarea
+            id="product-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={5}
+          />
+          <p className="text-sm text-muted-foreground">{copy.descriptionHint}</p>
         </div>
 
         <div className="flex items-center gap-3">
