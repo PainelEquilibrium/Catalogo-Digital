@@ -88,25 +88,21 @@ export async function purgeCategory(id: string, actor: AuditActor): Promise<"pur
   return "purged";
 }
 
-type Row = { id: string; deletedAt: Date | null };
-
-// Pagina por cursor (deletedAt, id) pulando o que falhou, até `batchSize` itens saírem ou acabarem os expirados.
+// Pagina por cursor em `id` (estritamente crescente, então sempre termina) pulando o que falhou, até `batchSize` itens saírem ou acabarem os expirados.
 // Assim itens que nunca saem (falha persistente) não monopolizam o lote.
 async function sweepExpired(
   cutoff: Date,
   batchSize: number,
-  find: (where: { AND: object[] }, take: number) => Promise<Row[]>,
+  find: (where: { deletedAt: { lte: Date }; id?: { gt: string } }, take: number) => Promise<{ id: string }[]>,
   purge: (id: string) => Promise<boolean>,
   onError: (id: string) => void,
 ): Promise<number> {
   let purged = 0;
-  let after: Row | null = null;
+  let after: string | undefined;
   while (purged < batchSize) {
-    const and: object[] = [{ deletedAt: { lte: cutoff } }];
-    if (after) and.push({ OR: [{ deletedAt: { gt: after.deletedAt } }, { deletedAt: after.deletedAt, id: { gt: after.id } }] });
-    const page = await find({ AND: and }, batchSize);
+    const page = await find({ deletedAt: { lte: cutoff }, ...(after && { id: { gt: after } }) }, batchSize);
     for (const row of page) {
-      after = row;
+      after = row.id;
       try {
         if (await purge(row.id)) purged++;
       } catch {
@@ -123,8 +119,8 @@ async function sweepExpired(
 // Uma falha isola o item (só o id vai para o log) e conta em `failed`.
 export async function purgeExpiredTrash(now: Date, batchSize = 100) {
   const cutoff = new Date(now.getTime() - TRASH_RETENTION_DAYS * DAY_MS);
-  const select = { id: true, deletedAt: true };
-  const orderBy = [{ deletedAt: "asc" as const }, { id: "asc" as const }];
+  const select = { id: true };
+  const orderBy = { id: "asc" as const };
   const result = { products: 0, categories: 0, blocked: 0, failed: 0 };
 
   result.products = await sweepExpired(

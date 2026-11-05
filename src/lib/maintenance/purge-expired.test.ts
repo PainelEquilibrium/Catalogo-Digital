@@ -15,24 +15,13 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma/client", () => {
-  type Cond = { deletedAt?: { lte?: Date; gt?: Date } | Date; id?: { gt: string }; OR?: Cond[] };
-  type Where = { AND: Cond[]; products?: { none?: object } };
-  const match = (r: Row, c: Cond): boolean => {
-    if (c.OR) return c.OR.some((o) => match(r, o));
-    const d = c.deletedAt;
-    if (d instanceof Date && r.deletedAt.getTime() !== d.getTime()) return false;
-    if (d && !(d instanceof Date)) {
-      if (d.lte && !(r.deletedAt <= d.lte)) return false;
-      if (d.gt && !(r.deletedAt > d.gt)) return false;
-    }
-    return !c.id || r.id > c.id.gt;
-  };
+  type Where = { deletedAt: { lte: Date }; id?: { gt: string }; products?: { none?: object } };
   const find = (name: "products" | "categories") => async ({ where, take }: { where: Where; take: number }) =>
     m[name]
-      .filter((r) => where.AND.every((c) => match(r, c)) && !(where.products?.none && r.blocked))
-      .sort((a, b) => a.deletedAt.getTime() - b.deletedAt.getTime() || a.id.localeCompare(b.id))
+      .filter((r) => r.deletedAt <= where.deletedAt.lte && (!where.id || r.id > where.id.gt) && !(where.products?.none && r.blocked))
+      .sort((a, b) => a.id.localeCompare(b.id))
       .slice(0, take)
-      .map((r) => ({ id: r.id, deletedAt: r.deletedAt }));
+      .map((r) => ({ id: r.id }));
   const tx = {
     product: {
       count: m.productCount,
@@ -161,4 +150,13 @@ it("auditoria com mais de 12 meses sai; com 11 fica", async () => {
   m.auditRows = [monthsAgo(13), monthsAgo(11)];
   expect(await pruneOldAudit(now)).toBe(1);
   expect(m.auditRows).toEqual([monthsAgo(11)]);
+});
+
+it("batchSize=1 com uma linha que sempre falha termina e tenta a linha uma vez só", async () => {
+  m.products = [{ id: "bad", deletedAt: ago(40) }];
+  m.failProduct.add("bad");
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(await purgeExpiredTrash(now, 1)).toMatchObject({ products: 0, failed: 1 });
+  expect(log.mock.calls.filter(([msg]) => msg === "Purge product failed")).toHaveLength(1);
+  log.mockRestore();
 });
