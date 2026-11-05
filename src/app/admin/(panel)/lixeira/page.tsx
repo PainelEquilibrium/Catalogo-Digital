@@ -9,7 +9,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { canPerform } from "@/lib/auth/permissions";
+import { requireStaff } from "@/lib/auth/server";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
+import { daysUntilPurge } from "@/lib/maintenance/purge-trash";
 import { queryTrash } from "./actions";
 
 const copy = copyAdminPtBr.trash;
@@ -30,6 +33,8 @@ export default async function AdminTrashPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const tipo = parseTipo(params.tipo);
   const { products, categories } = await queryTrash();
+  const canPurge = canPerform((await requireStaff()).role, "purge");
+  const now = new Date();
 
   const items = tipo === "produtos" ? products : categories;
   const emptyMessage =
@@ -72,6 +77,7 @@ export default async function AdminTrashPage({ searchParams }: PageProps) {
               <TableHead>{copy.colName}</TableHead>
               <TableHead>{copy.colSlug}</TableHead>
               <TableHead>{copy.colDeletedAt}</TableHead>
+              <TableHead>{copy.colRemaining}</TableHead>
               <TableHead className="text-right">{copy.restore}</TableHead>
             </TableRow>
           </TableHeader>
@@ -89,8 +95,12 @@ export default async function AdminTrashPage({ searchParams }: PageProps) {
                     minute: "2-digit",
                   })}
                 </TableCell>
+                <TableCell>
+                  {copy.remainingDays(daysUntilPurge(item.deletedAt, now))}
+                </TableCell>
                 <TableCell className="text-right">
                   <TrashRestoreButton
+                    canPurge={canPurge}
                     kind={tipo === "produtos" ? "product" : "category"}
                     itemId={item.id}
                   />

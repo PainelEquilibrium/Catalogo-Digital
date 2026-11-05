@@ -170,7 +170,19 @@ export const copyAdminPtBr = {
   },
   trash: {
     policyNote:
-      "Os itens ficam na lixeira por cerca de 30 dias. Nesta versão, nada é apagado automaticamente.",
+      "Os itens ficam na lixeira por 30 dias e depois são excluídos de vez, com as fotos.",
+    colRemaining: "Exclusão automática",
+    remainingDays: (days: number) =>
+      days === 0 ? "Hoje" : `Faltam ${days} ${days === 1 ? "dia" : "dias"}`,
+    purge: "Excluir definitivamente",
+    purgeConfirmTitle: "Excluir definitivamente?",
+    purgeConfirmDescription:
+      "O item e as fotos dele serão apagados de vez. Esta ação não pode ser desfeita.",
+    purgedProduct: "Produto excluído definitivamente.",
+    purgedCategory: "Categoria excluída definitivamente.",
+    errorPurgeHasProducts:
+      "Esta categoria ainda tem produtos, inclusive na lixeira. Exclua os produtos antes.",
+    cancel: "Cancelar",
     tabProducts: "Produtos",
     tabCategories: "Categorias",
     colName: "Nome",

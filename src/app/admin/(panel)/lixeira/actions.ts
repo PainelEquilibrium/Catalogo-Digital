@@ -3,6 +3,7 @@
 import { auditActorFor, recordAudit } from "@/lib/audit/record";
 import { requireAction, requireStaff } from "@/lib/auth/server";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
+import { purgeCategory, purgeProduct } from "@/lib/maintenance/purge-trash";
 import { prisma } from "@/lib/prisma/client";
 
 const copy = copyAdminPtBr.trash;
@@ -124,4 +125,24 @@ export async function restoreCategory(
   });
 
   return { ok: true };
+}
+
+export async function purgeTrashedProduct(
+  id: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const actor = auditActorFor(await requireAction("purge"));
+  const result = await purgeProduct(id, actor);
+  return result === "purged" ? { ok: true } : { ok: false, message: productCopy.errorNotFound };
+}
+
+export async function purgeTrashedCategory(
+  id: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const actor = auditActorFor(await requireAction("purge"));
+  const result = await purgeCategory(id, actor);
+  if (result === "purged") return { ok: true };
+  return {
+    ok: false,
+    message: result === "has_products" ? copy.errorPurgeHasProducts : categoryCopy.errorNotFound,
+  };
 }
