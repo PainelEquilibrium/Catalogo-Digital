@@ -12,7 +12,7 @@ import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
 
 const copy = copyAdminPtBr.settings;
 
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+export function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={htmlFor}>{label}</Label>

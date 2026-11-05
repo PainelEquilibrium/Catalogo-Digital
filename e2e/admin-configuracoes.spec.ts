@@ -250,3 +250,39 @@ test("arquivo acima de 4 MB recebe a mensagem de tamanho, não o erro genérico"
   await expect(page.getByText(copyAdminPtBr.upload.errorTooLarge)).toBeVisible({ timeout: 30_000 });
   expect(await settingValue("store")).toBeUndefined();
 });
+
+test("atendimento: modelo inválido é recusado, a prévia usa produto fictício e acompanha a edição", async ({ page }) => {
+  test.setTimeout(120_000);
+  await login(page, owner);
+  await page.goto("/admin/configuracoes");
+  await page.waitForLoadState("networkidle");
+  const contact = section(page, copy.sectionLabels.contact);
+  const preview = contact.getByTestId("whatsapp-preview");
+
+  await expect(preview).toContainText(copy.previewLines[0].name);
+  await contact.getByLabel(copy.itemTemplate).fill("{product_name} - {qty} un. teste-e2e");
+  await expect(preview).toContainText(`${copy.previewLines[0].name} - 2 un. teste-e2e`);
+
+  await contact.getByLabel(copy.itemTemplate).fill("{product_name} {preço}");
+  await expect(contact.getByRole("alert")).toContainText("{preço}");
+  await contact.getByRole("button", { name: copy.save }).click();
+  await expect(page.getByText(/Marcador desconhecido: \{preço\}/).first()).toBeVisible({ timeout: 30_000 });
+  expect(await settingValue("contact")).toBeUndefined();
+
+  await contact.getByLabel(copy.whatsappNumber).fill("123");
+  await contact.getByLabel(copy.itemTemplate).fill("{product_name} teste-e2e");
+  await contact.getByRole("button", { name: copy.save }).click();
+  await expect(page.getByText(copy.errorInvalid).first()).toBeVisible({ timeout: 30_000 });
+  expect(await settingValue("contact")).toBeUndefined();
+
+  await contact.getByLabel(copy.whatsappNumber).fill("+55 (00) 00000-0000");
+  await contact.getByRole("button", { name: copy.save }).click();
+  await expect.poll(() => settingValue("contact"), { timeout: 30_000 }).toMatchObject({
+    whatsapp_number: "5500000000000",
+    whatsapp_item_template: "{product_name} teste-e2e",
+  });
+  expect(await entityAudit("settings_update", "contact")).toBe(1);
+
+  await contact.getByRole("button", { name: copy.restore }).click();
+  await expect.poll(() => settingValue("contact"), { timeout: 30_000 }).toBeUndefined();
+});

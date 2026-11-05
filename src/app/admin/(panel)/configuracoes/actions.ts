@@ -80,7 +80,7 @@ export async function saveSettingsSection(section: SettingsSection, input: unkno
   if (auth.denied) return auth.denied;
   if (!Object.hasOwn(sectionKeys, section)) return { ok: false, message: copy.errorInvalid };
   const parsed = parseSectionInput(section, input);
-  if (!parsed.ok) return { ok: false, message: copy.errorInvalid };
+  if (!parsed.ok) return { ok: false, message: parsed.detail ? parsed.message : copy.errorInvalid };
 
   return writeSection(
     section,

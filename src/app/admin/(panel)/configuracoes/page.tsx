@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ContactSection } from "@/components/admin/settings/contact-section";
 import {
   BehaviorSection,
   HomeSection,
@@ -37,6 +38,7 @@ export default async function AdminSettingsPage() {
       <StoreSection key={`s${version}`} branding={branding} />
       <ThemeSection key={`t${version}`} branding={branding} />
       <HomeSection key={`h${version}`} branding={branding} />
+      <ContactSection key={`c${version}`} branding={branding} />
       <BehaviorSection key={`b${version}`} branding={branding} />
       <LegalSection key={`l${version}`} saved={legal} />
     </div>

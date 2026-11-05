@@ -1,4 +1,5 @@
 import { brandingSchema, FALLBACK_BRANDING } from "@/domain/branding";
+import { validateTemplates } from "@/domain/whatsapp-templates";
 
 export type SettingsSection = "store" | "theme" | "home" | "contact" | "behavior" | "legal";
 
@@ -14,7 +15,8 @@ export const sectionKeys: Record<SettingsSection, string[]> = {
 export const LEGAL_SLUGS = ["privacidade", "cookies", "termos"] as const;
 
 type Row = { key: string; value: unknown };
-type ParseResult = { ok: true; rows: Row[] } | { ok: false; message: string };
+// `detail` marca mensagem que o usuário pode ver; sem ele, a ação usa o texto genérico.
+type ParseResult = { ok: true; rows: Row[] } | { ok: false; message: string; detail?: true };
 
 const INVALID = "Dados inválidos.";
 
@@ -41,7 +43,7 @@ function pickLike(parsed: unknown, sent: unknown): unknown {
 function extraCheck(key: string, value: Record<string, unknown>): boolean {
   const text = (v: unknown) => (v === undefined ? undefined : String(v));
   if (key === "store" && "name" in value) return (text(value.name) ?? "").trim() !== "";
-  if (key === "contact" && "whatsapp_number" in value) return /^\d*$/.test(text(value.whatsapp_number) ?? "");
+  if (key === "contact" && "whatsapp_number" in value) return /^(\d{10,15})?$/.test(text(value.whatsapp_number) ?? "");
   if (key === "hero" && "cta_link" in value) return /^(\/(?![/\\])|https:\/\/)\S*$/.test(text(value.cta_link) ?? "");
   return true;
 }
@@ -50,6 +52,7 @@ const EDITABLE: Record<string, readonly string[]> = {
   store: ["name", "tagline"],
   hero: ["enabled", "title", "subtitle", "cta_label", "cta_link"],
   behavior: ["show_prices"],
+  contact: ["whatsapp_number", "whatsapp_item_template", "whatsapp_order_template"],
 };
 
 function parseBrandingKey(key: string, sent: unknown): Row | null {
@@ -57,6 +60,9 @@ function parseBrandingKey(key: string, sent: unknown): Row | null {
   let candidate = sent;
   const only = EDITABLE[key];
   if (only) candidate = Object.fromEntries(Object.entries(sent).filter(([k]) => only.includes(k)));
+  if (key === "contact" && typeof candidate.whatsapp_number === "string") {
+    candidate = { ...candidate, whatsapp_number: candidate.whatsapp_number.replace(/\D/g, "") };
+  }
   if (key === "theme") {
     // Imagens e fontes não vêm deste formulário.
     const { primary_color, secondary_color, background_color, surface_color, text_color, accent_color, dark_mode } =
@@ -92,6 +98,15 @@ export function parseSectionInput(section: SettingsSection, input: unknown): Par
     }
     const row = parseBrandingKey(key, input[key]);
     if (!row) return { ok: false, message: INVALID };
+    if (key === "contact") {
+      const c = row.value as Record<string, string>;
+      const base = FALLBACK_BRANDING.contact;
+      const check = validateTemplates(
+        c.whatsapp_item_template ?? base.whatsapp_item_template,
+        c.whatsapp_order_template ?? base.whatsapp_order_template,
+      );
+      if (!check.ok) return { ok: false, message: check.message, detail: true };
+    }
     rows.push(row);
   }
   return { ok: true, rows };
