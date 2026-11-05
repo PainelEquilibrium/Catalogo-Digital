@@ -1,6 +1,7 @@
 import { copyPtBr } from "@/lib/copy/pt-br";
 import type { Selection } from "@/domain/customer-choices";
 import { formatProductPrice } from "@/domain/price";
+import type { ITEM_MARKERS, ORDER_MARKERS } from "@/domain/whatsapp-templates";
 
 export type OrderLine = {
   name: string;
@@ -56,16 +57,15 @@ export function buildOrderMessage(input: {
     if (priced) totalCents += unitCents * line.qty;
 
     const selection = line.selections.map((s) => `${s.label}: ${s.value}`).join(", ");
-    itemTexts.push(
-      renderTemplate(itemTemplate, {
-        product_name: line.name,
-        selection: selection ? ` (${selection})` : "",
-        qty: String(line.qty),
-        unit_price: priced ? money(unitCents / 100, currency) : "",
-        item_total: priced ? money((unitCents * line.qty) / 100, currency) : "",
-        product_url: line.url,
-      }),
-    );
+    const itemValues: Record<(typeof ITEM_MARKERS)[number], string> = {
+      product_name: line.name,
+      selection: selection ? ` (${selection})` : "",
+      qty: String(line.qty),
+      unit_price: priced ? money(unitCents / 100, currency) : "",
+      item_total: priced ? money((unitCents * line.qty) / 100, currency) : "",
+      product_url: line.url,
+    };
+    itemTexts.push(renderTemplate(itemTemplate, itemValues));
   }
 
   let total = "";
@@ -81,11 +81,12 @@ export function buildOrderMessage(input: {
     }
   }
 
-  return renderTemplate(orderTemplate, {
+  const orderValues: Record<(typeof ORDER_MARKERS)[number], string> = {
     items_list: itemTexts.join("\n\n"),
     total_items: String(totalQty),
     total,
-  });
+  };
+  return renderTemplate(orderTemplate, orderValues);
 }
 
 export function buildOrderWhatsappUrl(

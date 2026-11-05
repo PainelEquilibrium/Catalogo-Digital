@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FALLBACK_BRANDING } from "@/domain/branding";
 import { parseSectionInput } from "@/domain/settings-sections";
@@ -7,12 +6,6 @@ import { ITEM_MARKERS, ORDER_MARKERS, validateTemplates } from "./whatsapp-templ
 
 const { whatsapp_item_template: item, whatsapp_order_template: order } = FALLBACK_BRANDING.contact;
 const FAKE_NUMBER = "5500000000000";
-
-function blockKeys(source: string, call: string): string[] {
-  const start = source.indexOf(call);
-  const block = source.slice(start).split(/\n\s*\}\)/)[0];
-  return [...block.matchAll(/^\s*(\w+)\s*[:,]/gm)].map((m) => m[1]);
-}
 
 describe("validateTemplates", () => {
   it("aceita os padrões", () => {
@@ -27,6 +20,17 @@ describe("validateTemplates", () => {
     }
     const inOrder = validateTemplates(item, `{items_list} {preço}`);
     expect(!inOrder.ok && inOrder.message).toContain("{preço}");
+  });
+
+  it("recusa chaves soltas, quebradas ou duplas e nomeia o trecho", () => {
+    for (const bad of ["{", "}", "{qty", "{a\nb}", "{{qty}}"]) {
+      for (const result of [validateTemplates(`{product_name} ${bad}`, order), validateTemplates(item, `{items_list} ${bad}`)]) {
+        expect(result.ok).toBe(false);
+        expect(!result.ok && result.message).toMatch(/[{}]/);
+      }
+    }
+    const long = validateTemplates(`{product_name} {${"x".repeat(200)}}`, order);
+    expect(!long.ok && long.message.length).toBeLessThan(120);
   });
 
   it("recusa marcador de um modelo usado no outro", () => {
@@ -44,10 +48,7 @@ describe("validateTemplates", () => {
     expect(!result.ok && result.message).toContain("{product_name}");
   });
 
-  it("os marcadores aceitos são exatamente os que buildOrderMessage substitui", () => {
-    const source = readFileSync("src/lib/whatsapp/build-order-message.ts", "utf8");
-    expect(blockKeys(source, "renderTemplate(itemTemplate, {").sort()).toEqual([...ITEM_MARKERS].sort());
-    expect(blockKeys(source, "return renderTemplate(orderTemplate, {").sort()).toEqual([...ORDER_MARKERS].sort());
+  it("cada marcador aceito é substituído por buildOrderMessage", () => {
     const line = { name: "N", selections: [{ key: "k", label: "L", value: "V" }], qty: 1, price: 10, promoPrice: null, url: "u" };
     const base = { lines: [line], showPrices: true, currency: "BRL" };
     for (const m of ITEM_MARKERS) {
@@ -74,6 +75,12 @@ describe("contato em parseSectionInput", () => {
   it("recusa modelo inválido no servidor e diz qual marcador", () => {
     const result = parse({ whatsapp_item_template: "{product_name} {preço}" });
     expect(!result.ok && result.message).toContain("{preço}");
+  });
+
+  it("recusa número ou modelo que não seja texto, sem lançar", () => {
+    expect(parse({ whatsapp_number: 5500000000000 }).ok).toBe(false);
+    expect(parse({ whatsapp_item_template: 5 }).ok).toBe(false);
+    expect(parse({ whatsapp_order_template: { a: 1 } }).ok).toBe(false);
   });
 
   it("não grava o campo legado", () => {

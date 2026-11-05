@@ -4,15 +4,22 @@ export const ORDER_MARKERS = ["items_list", "total_items", "total"] as const;
 
 type Validation = { ok: true } | { ok: false; message: string };
 
-function unknownMarker(template: string, allowed: readonly string[]): string | null {
-  // Qualquer {…} fora da lista é recusado, inclusive {preço}, que buildOrderMessage deixaria literal.
-  for (const [marker, name] of template.matchAll(/\{([^{}\n]*)\}/g)) if (!allowed.includes(name)) return marker;
-  return null;
+const short = (text: string) => {
+  const flat = text.replace(/\s+/g, " ");
+  return flat.length > 20 ? `${flat.slice(0, 20)}…` : flat;
+};
+
+// Tira os marcadores aceitos; qualquer chave que sobre chegaria literal à cliente (inclusive {preço}, {{qty}}, "{" solto).
+function badBrace(template: string, allowed: readonly string[]): string | null {
+  const rest = template.replace(/\{(\w+)\}/g, (m, name: string) => (allowed.includes(name) ? "" : m));
+  const m = rest.match(/\{[^{}\n]*\}|\{[^{}]{0,20}|[{}]/);
+  if (!m) return null;
+  return /^\{[^{}\n]*\}$/.test(m[0]) ? `Marcador desconhecido: ${short(m[0])}` : `Chave sem par: ${short(m[0])}`;
 }
 
 export function validateTemplates(item: string, order: string): Validation {
-  const bad = unknownMarker(item, ITEM_MARKERS) ?? unknownMarker(order, ORDER_MARKERS);
-  if (bad) return { ok: false, message: `Marcador desconhecido: ${bad}. Confira a lista de marcadores.` };
+  const bad = badBrace(item, ITEM_MARKERS) ?? badBrace(order, ORDER_MARKERS);
+  if (bad) return { ok: false, message: `${bad}. Confira a lista de marcadores.` };
   if (!item.includes("{product_name}")) return { ok: false, message: "O modelo do item precisa de {product_name}." };
   if (!order.includes("{items_list}")) return { ok: false, message: "O modelo da mensagem precisa de {items_list}." };
   return { ok: true };
