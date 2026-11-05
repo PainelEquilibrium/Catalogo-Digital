@@ -33,8 +33,8 @@ if (supabaseHost) {
 }
 
 const nextConfig: NextConfig = {
-  // Uploads de até 8 MB (MAX_UPLOAD_BYTES) mais o multipart; o padrão do Next é 1 MB.
-  experimental: { serverActions: { bodySizeLimit: "9mb" } },
+  // Vercel recusa corpos acima de 4,5 MB; uploads de até 4 MiB (MAX_UPLOAD_BYTES) mais o multipart. O padrão do Next é 1 MB.
+  experimental: { serverActions: { bodySizeLimit: "4.5mb" } },
   images: {
     remotePatterns,
   },

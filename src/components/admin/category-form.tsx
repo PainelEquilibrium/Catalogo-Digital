@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { slugFromName } from "@/domain/product-write";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
+import { MAX_UPLOAD_BYTES, messageForUploadError } from "@/lib/images/upload-errors";
 import { toast } from "sonner";
 
 const copy = copyAdminPtBr.categories;
@@ -70,6 +71,10 @@ export function CategoryForm({ initial = null }: CategoryFormProps) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !initial?.id) {
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(messageForUploadError("too_large"));
       return;
     }
 

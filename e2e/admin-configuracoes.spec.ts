@@ -239,3 +239,14 @@ test("foto real acima de 1 MB é aceita pelo upload (limite de corpo da Server A
   await section(page, copy.sectionLabels.home).getByRole("button", { name: copy.restore }).click();
   await expect.poll(storeObjects, { timeout: 60_000 }).toEqual([]);
 });
+
+test("arquivo acima de 4 MB recebe a mensagem de tamanho, não o erro genérico", async ({ page }) => {
+  test.setTimeout(120_000);
+  const big = Buffer.concat([await png(100, "#ff0000"), Buffer.alloc(4 * 1024 * 1024)]);
+  await login(page, owner);
+  await page.goto("/admin/configuracoes");
+  await page.waitForLoadState("networkidle");
+  await section(page, copy.sectionLabels.store).getByLabel(copy.logoDark).setInputFiles({ name: "enorme.png", mimeType: "image/png", buffer: big });
+  await expect(page.getByText(copyAdminPtBr.upload.errorTooLarge)).toBeVisible({ timeout: 30_000 });
+  expect(await settingValue("store")).toBeUndefined();
+});

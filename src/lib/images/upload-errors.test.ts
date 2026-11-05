@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_UPLOAD_BYTES, mapUploadError } from "./upload-errors";
 
 describe("mapUploadError", () => {
-  it("classifica arquivo acima de 8 MB", () => {
+  it("classifica arquivo acima de 4 MiB", () => {
     expect(mapUploadError(new Error("ignored"), MAX_UPLOAD_BYTES + 1)).toBe(
       "too_large",
     );

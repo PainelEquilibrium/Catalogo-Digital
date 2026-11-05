@@ -263,7 +263,7 @@ export const copyAdminPtBr = {
     },
     storeName: "Nome da loja",
     storeTagline: "Descrição da loja",
-    assetHint: "JPEG, PNG ou WebP, até 8 MB.",
+    assetHint: "JPEG, PNG ou WebP, até 4 MB.",
     assetChoose: "Trocar imagem",
     assetUploading: "Enviando…",
     assetSaved: "Imagem atualizada.",
@@ -347,12 +347,12 @@ export const copyAdminPtBr = {
     saveDraftFirst:
       "Salve o rascunho do produto antes de enviar fotos.",
     coverTitle: "Capa da categoria",
-    coverHint: "JPEG, PNG ou WebP. Lado menor de pelo menos 800 px, até 8 MB.",
+    coverHint: "JPEG, PNG ou WebP. Lado menor de pelo menos 800 px, até 4 MB.",
     coverUploading: "Enviando capa…",
     photoCleanupPending: "Foto removida. A limpeza dos arquivos ficou pendente.",
     coverCleanupPending: "Capa salva. A limpeza dos arquivos anteriores ficou pendente.",
     coverSaved: "Capa atualizada.",
-    errorTooLarge: "A imagem passa de 8 MB. Escolha um arquivo menor.",
+    errorTooLarge: "A imagem passa de 4 MB. Escolha um arquivo menor.",
     errorHeic: "Fotos HEIC não são aceitas. Converta para JPEG ou PNG.",
     errorTooSmall:
       "A imagem precisa ter pelo menos 800 px no lado menor.",

@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { copyAdminPtBr } from "@/lib/copy/admin-pt-br";
+import { MAX_UPLOAD_BYTES, messageForUploadError } from "@/lib/images/upload-errors";
 import { toast } from "sonner";
 
 const copy = copyAdminPtBr.upload;
@@ -42,6 +43,10 @@ export function ImageGalleryEditor({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !productId) {
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(messageForUploadError("too_large"));
       return;
     }
 
