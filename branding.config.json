@@ -41,7 +41,7 @@
   },
   "hero": {
     "enabled": true,
-    "image_url": "https://placehold.co/1600x900/3a4a5e/f4f6f8?text=Catálogo+Digital",
+    "image_url": "/images/hero-padrao.webp",
     "title": "Nosso Catálogo",
     "subtitle": "Roupas selecionadas para você explorar com calma",
     "cta_label": "Ver novidades",
@@ -77,13 +77,13 @@
     "no_results": "Nenhum produto com esses filtros. Ajuste a busca."
   },
   "share": {
-    "og_home_image": "https://placehold.co/1200x630/2D3A4A/ffffff?text=Catálogo+Digital",
-    "og_category_fallback": "https://placehold.co/1200x630/C9A66B/2B2B2B?text=Coleção",
+    "og_image": "/images/og-padrao.jpg",
     "share_message": "Olá! Amei esse catálogo e acho que você vai gostar:"
   },
   "contact": {
     "whatsapp_number": "",
-    "whatsapp_message_default": "Olá! Vi o catálogo e quero saber mais sobre: {product_name} {product_url} {price}"
+    "whatsapp_item_template": "• {product_name}{selection} x{qty} {item_total}\n{product_url}",
+    "whatsapp_order_template": "Olá! Quero fazer este pedido:\n\n{items_list}\n\nTotal de peças: {total_items}\n{total}"
   },
   "behavior": {
     "default_sort": "novidades",

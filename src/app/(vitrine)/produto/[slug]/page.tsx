@@ -61,7 +61,10 @@ function buildProductWhatsappUrl(
 
   return buildWhatsappUrl({
     number,
-    template: branding.contact.whatsapp_message_default,
+    // Task 19 troca por whatsapp_item_template; até lá, o texto antigo.
+    template:
+      branding.contact.whatsapp_message_default ??
+      "Olá! Vi o catálogo e quero saber mais sobre: {product_name} {product_url} {price}",
     productName: product.name,
     productUrl: `${getSiteUrl()}/produto/${product.slug}`,
     priceLabel: whatsappPriceLabel(product),

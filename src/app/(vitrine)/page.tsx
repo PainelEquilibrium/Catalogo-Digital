@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: branding.store.tagline,
       images: [
         {
-          url: branding.share.og_home_image,
+          url: branding.share.og_image,
           width: 1200,
           height: 630,
           alt: branding.store.name,
@@ -205,7 +205,7 @@ export default async function HomePage() {
           {branding.sections.categories.enabled ? (
             <CategoryGrid
               categories={categories}
-              fallbackCoverUrl={branding.share.og_category_fallback}
+              fallbackCoverUrl={branding.share.og_image}
               sectionTitle={branding.sections.categories.title}
             />
           ) : null}

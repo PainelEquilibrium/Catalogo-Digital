@@ -56,13 +56,13 @@ const validFileBranding: Branding = {
     no_results: "Sem resultados",
   },
   share: {
-    og_home_image: "https://example.com/og.png",
-    og_category_fallback: "https://example.com/og-cat.png",
+    og_image: "https://example.com/og.png",
     share_message: "Confira:",
   },
   contact: {
     whatsapp_number: "",
-    whatsapp_message_default: "Olá!",
+    whatsapp_item_template: "{product_name}",
+    whatsapp_order_template: "{items_list}",
   },
   behavior: {
     default_sort: "novidades",
@@ -165,6 +165,44 @@ describe("deriveDarkTheme", () => {
     expect(contrastRatio(dark.text_color, dark.background_color)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(dark.accent_color, dark.background_color)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(dark.secondary_color, dark.background_color)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("padrões de imagem e modelos", () => {
+  const json = parseBranding(
+    JSON.parse(readFileSync(join(process.cwd(), "branding.config.json"), "utf-8")),
+  );
+
+  it("fallback e JSON usam o hero local de nome fixo", () => {
+    expect(FALLBACK_BRANDING.hero.image_url).toBe("/images/hero-padrao.webp");
+    expect(json.hero.image_url).toBe("/images/hero-padrao.webp");
+    expect(existsSync(join(process.cwd(), "public/images/hero-padrao.webp"))).toBe(true);
+    expect(json.share.og_image).toBe("/images/og-padrao.jpg");
+    expect(existsSync(join(process.cwd(), "public/images/og-padrao.jpg"))).toBe(true);
+  });
+
+  it("nenhum padrão aponta para placehold.co", () => {
+    expect(JSON.stringify(FALLBACK_BRANDING)).not.toContain("placehold.co");
+    expect(JSON.stringify(json)).not.toContain("placehold.co");
+  });
+
+  it("override antigo com whatsapp_message_default não quebra o parse", () => {
+    const result = resolveBrandingLayers({
+      fromDb: { contact: { whatsapp_message_default: "Olá {price}" } },
+      fromFile: validFileBranding,
+    });
+    expect(result.contact.whatsapp_item_template).toBe("{product_name}");
+  });
+
+  it("modelos têm padrão com os marcadores da spec", () => {
+    for (const b of [FALLBACK_BRANDING, json]) {
+      expect(b.contact.whatsapp_item_template).toBe(
+        "• {product_name}{selection} x{qty} {item_total}\n{product_url}",
+      );
+      expect(b.contact.whatsapp_order_template).toBe(
+        "Olá! Quero fazer este pedido:\n\n{items_list}\n\nTotal de peças: {total_items}\n{total}",
+      );
+    }
   });
 });
 

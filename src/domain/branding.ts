@@ -62,7 +62,7 @@ export const brandingSchema = z.object({
   theme: themeSchema,
   hero: z.object({
     enabled: z.boolean(),
-    image_url: z.string().url(),
+    image_url: assetPath,
     title: z.string(),
     subtitle: z.string(),
     cta_label: z.string(),
@@ -80,13 +80,15 @@ export const brandingSchema = z.object({
     no_results: z.string(),
   }),
   share: z.object({
-    og_home_image: z.string().url(),
-    og_category_fallback: z.string().url(),
+    og_image: assetPath,
     share_message: z.string(),
   }),
   contact: z.object({
     whatsapp_number: z.string(),
-    whatsapp_message_default: z.string(),
+    whatsapp_item_template: z.string(),
+    whatsapp_order_template: z.string(),
+    // Legado: removido na Task 21; hoje só alimenta build-whatsapp-url.
+    whatsapp_message_default: z.string().optional(),
   }),
   behavior: z.object({
     default_sort: z.enum(["novidades", "preco_asc", "preco_desc", "destaque"]),
@@ -135,7 +137,7 @@ const RAW_FALLBACK: Branding = {
   },
   hero: {
     enabled: true,
-    image_url: "https://placehold.co/1600x900/3a4a5e/f4f6f8?text=Cat%C3%A1logo+Digital",
+    image_url: "/images/hero-padrao.webp",
     title: "Nosso Catálogo",
     subtitle: "Roupas selecionadas para você explorar com calma",
     cta_label: "Ver novidades",
@@ -153,14 +155,13 @@ const RAW_FALLBACK: Branding = {
     no_results: "Nenhum produto com esses filtros. Ajuste a busca.",
   },
   share: {
-    og_home_image: "https://placehold.co/1200x630/2D3A4A/ffffff?text=Cat%C3%A1logo+Digital",
-    og_category_fallback: "https://placehold.co/1200x630/C9A66B/2B2B2B?text=Cole%C3%A7%C3%A3o",
+    og_image: "/images/og-padrao.jpg",
     share_message: "Olá! Amei esse catálogo e acho que você vai gostar:",
   },
   contact: {
     whatsapp_number: "",
-    whatsapp_message_default:
-      "Olá! Vi o catálogo e quero saber mais sobre: {product_name} {product_url} {price}",
+    whatsapp_item_template: "• {product_name}{selection} x{qty} {item_total}\n{product_url}",
+    whatsapp_order_template: "Olá! Quero fazer este pedido:\n\n{items_list}\n\nTotal de peças: {total_items}\n{total}",
   },
   behavior: {
     default_sort: "novidades",

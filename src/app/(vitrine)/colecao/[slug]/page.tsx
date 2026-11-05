@@ -66,7 +66,7 @@ export async function generateMetadata({
     return { title: copyPtBr.catalog.collectionTitle };
   }
 
-  const ogImage = category.coverImageUrl ?? branding.share.og_category_fallback;
+  const ogImage = category.coverImageUrl ?? branding.share.og_image;
 
   return {
     title: category.name,
