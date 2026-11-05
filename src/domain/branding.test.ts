@@ -234,12 +234,13 @@ describe("assetPath e overrides legados", () => {
     expect(result.share.og_image).toBe(validFileBranding.share.og_image);
   });
 
-  it("preserva whatsapp_message_default legado do banco", () => {
+  it("descarta whatsapp_message_default legado do banco sem recusar a linha", () => {
     const result = resolveBrandingLayers({
-      fromDb: { contact: { whatsapp_message_default: "Olá {price}" } },
+      fromDb: { contact: { whatsapp_number: "5511999998888", whatsapp_message_default: "Olá {price}" } },
       fromFile: validFileBranding,
     });
-    expect(result.contact.whatsapp_message_default).toBe("Olá {price}");
+    expect(result.contact.whatsapp_number).toBe("5511999998888");
+    expect(result.contact).not.toHaveProperty("whatsapp_message_default");
   });
 });
 

@@ -123,17 +123,31 @@ test.describe("vitrine pública", () => {
     await expect.poll(() => cards.count()).toBeLessThanOrEqual(initialCount);
   });
 
-  test("produto: CTA WhatsApp leva número, nome, link e preço", async ({
+  test("produto: Comprar pelo WhatsApp leva número, nome, link e preço", async ({
     page,
+    context,
     baseURL,
   }) => {
-    await page.goto("/produto/blusa-trico-cashmere");
+    await context.route("https://wa.me/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "ok" }),
+    );
 
-    const ctaWithPrice = page.getByRole("link", {
-      name: copyPtBr.whatsapp.ctaLabel,
-    });
-    await expect(ctaWithPrice).toBeVisible();
-    const urlWithPrice = assertWaMeHref(await ctaWithPrice.getAttribute("href"));
+    async function buy(slug: string) {
+      await page.goto(`/produto/${slug}`);
+      await page.waitForLoadState("networkidle"); // hidratação antes do clique
+      // Se a categoria já tiver "cliente escolhe", escolhe a primeira opção de cada grupo.
+      for (const group of await page.getByRole("group").all()) {
+        await group.getByRole("radio").first().check({ force: true });
+      }
+      const [popup] = await Promise.all([
+        page.waitForEvent("popup"),
+        page.getByRole("button", { name: copyPtBr.whatsapp.ctaLabel }).click(),
+      ]);
+      await popup.waitForURL(/wa\.me/);
+      return assertWaMeHref(popup.url());
+    }
+
+    const urlWithPrice = await buy("blusa-trico-cashmere");
     expect(urlWithPrice.pathname).toBe("/5511999998888");
     const textWithPrice = urlWithPrice.searchParams.get("text") ?? "";
     expect(textWithPrice).toContain("Blusa Tricô Cashmere");
@@ -143,15 +157,7 @@ test.describe("vitrine pública", () => {
     expect(textWithPrice).not.toMatch(/189,90/);
     expect(textWithPrice).not.toMatch(/\{\w+\}/);
 
-    await page.goto("/produto/vestido-trico-midi");
-
-    const ctaNoPrice = page.getByRole("link", {
-      name: copyPtBr.whatsapp.ctaLabel,
-    });
-    await expect(ctaNoPrice).toBeVisible();
-
-    const urlNoPrice = assertWaMeHref(await ctaNoPrice.getAttribute("href"));
-    const textNoPrice = urlNoPrice.searchParams.get("text") ?? "";
+    const textNoPrice = (await buy("vestido-trico-midi")).searchParams.get("text") ?? "";
     expect(textNoPrice).toContain("Vestido Tricô Midi");
     expect(textNoPrice).toContain(`${baseURL}/produto/vestido-trico-midi`);
     expect(textNoPrice).not.toMatch(/R\$/);

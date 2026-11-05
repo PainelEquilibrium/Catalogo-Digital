@@ -2,7 +2,8 @@ export type WhatsappClickEvent = {
   event: "whatsapp_click";
   event_id: string;
   path: string;
-  slug: string;
+  slug: string | null;
+  line_count: number;
 };
 
 export type PageViewEvent = {
@@ -19,7 +20,11 @@ declare global {
   }
 }
 
-export function trackWhatsappClick(path: string, slug: string): void {
+export function trackWhatsappClick(
+  path: string,
+  slug: string | null,
+  lineCount: number,
+): void {
   if (typeof window === "undefined") {
     return;
   }
@@ -30,5 +35,6 @@ export function trackWhatsappClick(path: string, slug: string): void {
     event_id: crypto.randomUUID(),
     path,
     slug,
+    line_count: lineCount,
   });
 }

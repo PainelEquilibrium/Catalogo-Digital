@@ -89,8 +89,6 @@ export const brandingSchema = z.object({
     whatsapp_number: z.string(),
     whatsapp_item_template: z.string(),
     whatsapp_order_template: z.string(),
-    // Legado: removido na Task 21; hoje só alimenta build-whatsapp-url.
-    whatsapp_message_default: z.string().optional(),
   }),
   behavior: z.object({
     default_sort: z.enum(["novidades", "preco_asc", "preco_desc", "destaque"]),

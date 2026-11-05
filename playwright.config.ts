@@ -27,9 +27,19 @@ export default defineConfig({
       ...e2eEnv,
     },
   },
+  // admin-configuracoes troca preços, número e nome da loja no banco inteiro por um tempo.
+  // Roda depois de todo o resto, em projeto próprio, para nenhum outro spec ler esse estado.
+  // Task 26 consolida a configuração.
   projects: [
     {
       name: "chromium",
+      testIgnore: "**/admin-configuracoes.spec.ts",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "chromium-global-settings",
+      testMatch: "**/admin-configuracoes.spec.ts",
+      dependencies: ["chromium"],
       use: { ...devices["Desktop Chrome"] },
     },
   ],

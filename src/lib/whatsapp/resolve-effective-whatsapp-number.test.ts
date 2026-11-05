@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWhatsappUrl } from "./build-whatsapp-url";
 import { resolveEffectiveWhatsappNumber } from "./resolve-effective-whatsapp-number";
-
-const template = "Olá! {product_name} {product_url} {price}";
 
 describe("resolveEffectiveWhatsappNumber", () => {
   it("prioriza branding com dígitos sobre env", () => {
@@ -17,17 +14,8 @@ describe("resolveEffectiveWhatsappNumber", () => {
     );
   });
 
-  it("retorna null sem número efetivo — CTA não monta wa.me", () => {
-    const number = resolveEffectiveWhatsappNumber("", undefined);
-    expect(number).toBeNull();
-    expect(
-      buildWhatsappUrl({
-        number,
-        template,
-        productName: "Produto",
-        productUrl: "https://loja.example/produto/x",
-        priceLabel: "R$ 10,00",
-      }),
-    ).toBeNull();
+  it("retorna null sem número efetivo — o envio fica indisponível", () => {
+    expect(resolveEffectiveWhatsappNumber("", undefined)).toBeNull();
+    expect(resolveEffectiveWhatsappNumber("abc", "  ")).toBeNull();
   });
 });

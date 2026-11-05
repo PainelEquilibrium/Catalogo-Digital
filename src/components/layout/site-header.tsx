@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Branding } from "@/domain/branding";
 import type { CategoryCard } from "@/domain/product";
 import { copyPtBr } from "@/lib/copy/pt-br";
+import { CartButton } from "@/components/cart/cart-button";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
@@ -68,6 +69,7 @@ export function SiteHeader({
           ) : null}
 
           <ThemeToggle enabled={showThemeToggle} />
+          <CartButton />
         </div>
       </div>
     </header>

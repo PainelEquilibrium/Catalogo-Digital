@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Branding } from "@/domain/branding";
-import { formatProductPrice } from "@/domain/price";
-import type { ProductCard, ProductDetail } from "@/domain/product";
+import { parseFieldsSchema } from "@/domain/category-fields";
+import { customerChoices } from "@/domain/customer-choices";
+import type { ProductCard } from "@/domain/product";
 import { ProductCard as CatalogProductCard } from "@/components/catalog/product-card";
 import { ProductGallery } from "@/components/catalog/product-gallery";
 import { ProductPrice } from "@/components/catalog/product-price";
 import { ShareButton } from "@/components/catalog/share-button";
-import { WhatsappCta } from "@/components/catalog/whatsapp-cta";
+import { ProductPurchase } from "@/components/catalog/product-purchase";
 import { getSiteUrl } from "@/config/site";
 import {
   formatProductAttributeValue,
@@ -23,8 +24,6 @@ import {
 } from "@/lib/catalog/query-product-by-slug";
 import { resolveBranding } from "@/lib/branding/resolve-branding";
 import { copyPtBr } from "@/lib/copy/pt-br";
-import { buildWhatsappUrl } from "@/lib/whatsapp/build-whatsapp-url";
-import { resolveEffectiveWhatsappNumber } from "@/lib/whatsapp/resolve-effective-whatsapp-number";
 
 // Catálogo não pode ficar estático no deploy.
 export const dynamic = "force-dynamic";
@@ -32,44 +31,6 @@ export const dynamic = "force-dynamic";
 type ProductPageProps = {
   params: Promise<{ slug: string }>;
 };
-
-function whatsappPriceLabel(product: ProductDetail): string | null {
-  const formatted = formatProductPrice({
-    price: product.price,
-    promoPrice: product.promoPrice,
-    showPrices: product.showPrices,
-    currency: product.currency,
-  });
-
-  if (formatted.kind === "consulta") {
-    return null;
-  }
-  if (formatted.kind === "promo") {
-    return formatted.to;
-  }
-  return formatted.label;
-}
-
-function buildProductWhatsappUrl(
-  product: ProductDetail,
-  branding: Branding,
-): string | null {
-  const number = resolveEffectiveWhatsappNumber(
-    branding.contact.whatsapp_number,
-    process.env.WHATSAPP_NUMBER,
-  );
-
-  return buildWhatsappUrl({
-    number,
-    // Task 19 troca por whatsapp_item_template; até lá, o texto antigo.
-    template:
-      branding.contact.whatsapp_message_default ??
-      "Olá! Vi o catálogo e quero saber mais sobre: {product_name} {product_url} {price}",
-    productName: product.name,
-    productUrl: `${getSiteUrl()}/produto/${product.slug}`,
-    priceLabel: whatsappPriceLabel(product),
-  });
-}
 
 function RelatedGrid({
   products,
@@ -153,10 +114,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const branding = await resolveBranding();
   const category = await queryCategoryBySlug(product.categorySlug);
   const related = await queryRelated(product.categoryId, product.id);
-  const whatsappUrl = buildProductWhatsappUrl(product, branding);
+  const choices = customerChoices(
+    parseFieldsSchema(category?.fieldsSchema ?? []),
+    Object.fromEntries(product.attributes.map((attribute) => [attribute.key, attribute.value])),
+  );
+  const choiceKeys = new Set(choices.map((choice) => choice.key));
   const shareUrl = `${getSiteUrl()}/produto/${product.slug}`;
-  const visibleAttributes = product.attributes.filter((attribute) =>
-    isPresentAttributeValue(attribute.value),
+  // Campos "cliente escolhe" viram seletores abaixo; não repetem na lista de atributos.
+  const visibleAttributes = product.attributes.filter(
+    (attribute) => !choiceKeys.has(attribute.key) && isPresentAttributeValue(attribute.value),
   );
 
   return (
@@ -219,16 +185,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </dl>
           ) : null}
 
-          <div className="flex flex-col gap-3 border-t border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] pt-6 sm:flex-row sm:flex-wrap sm:items-center">
-            {whatsappUrl ? (
-              <WhatsappCta
-                href={whatsappUrl}
-                label={copyPtBr.whatsapp.ctaLabel}
-                path={`/produto/${product.slug}`}
-                slug={product.slug}
-              />
-            ) : null}
-            <ShareButton url={shareUrl} title={product.name} />
+          <div className="flex flex-col gap-4 border-t border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] pt-6">
+            <ProductPurchase product={{ id: product.id, slug: product.slug }} choices={choices} />
+            <div>
+              <ShareButton url={shareUrl} title={product.name} />
+            </div>
           </div>
         </div>
       </article>
