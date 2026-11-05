@@ -20,6 +20,7 @@ const failureText: Record<Exclude<SendOutcome, "sent">, string> = {
   revalidation_failed: copy.revalidationFailed,
   nothing_to_send: copy.unavailableHint,
   too_long: copy.tooLong,
+  error: copy.sendError,
 };
 
 type ProductPurchaseProps = {

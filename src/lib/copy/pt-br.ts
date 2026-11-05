@@ -68,6 +68,7 @@ export const copyPtBr = {
     send: "Enviar pedido pelo WhatsApp",
     noNumber: "O envio pelo WhatsApp está indisponível: a loja ainda não configurou um número.",
     tooLong: "O pedido ficou grande demais para caber no link do WhatsApp. Remova alguns itens e tente de novo.",
+    sendError: "Não foi possível montar o pedido. Tente de novo.",
     nothingToSend: "Nenhum item disponível para enviar.",
     afterSend: "Abrimos o WhatsApp com o seu pedido. O carrinho continua aqui até você limpar.",
     clear: "Limpar carrinho",

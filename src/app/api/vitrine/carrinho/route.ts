@@ -17,7 +17,9 @@ export async function POST(request: Request) {
   try {
     const items = await queryCartProducts([...new Set(parsed.data.ids)]);
     return NextResponse.json({ items }, { headers: noStore });
-  } catch {
+  } catch (error) {
+    // Só a classe do erro: a mensagem pode trazer dados de conexão.
+    console.error("Cart revalidation failed", { error: error instanceof Error ? error.name : "unknown" });
     return NextResponse.json({ error: "Indisponível no momento." }, { status: 503, headers: noStore });
   }
 }

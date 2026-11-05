@@ -3,6 +3,7 @@ import { createElement, act, Fragment, type ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { CartDrawer } from "./cart-drawer";
+import { ProductPurchase } from "@/components/catalog/product-purchase";
 import { CartProvider, useCart, type CartConfig } from "./cart-provider";
 import { copyPtBr } from "@/lib/copy/pt-br";
 
@@ -55,5 +56,30 @@ describe("CartDrawer sem número", () => {
     const unmount = await renderOpen("+--");
     expect(document.querySelector('[role="dialog"]')!.textContent).toContain(copyPtBr.cart.noNumber);
     await unmount();
+  });
+});
+
+describe("ProductPurchase sem número", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("desabilita Comprar pelo WhatsApp e mostra o aviso", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        createElement(
+          CartProvider,
+          { config: config(null) } as ComponentProps<typeof CartProvider>,
+          createElement(ProductPurchase, { product: { id: "p", slug: "p" }, choices: [] }),
+        ),
+      );
+    });
+    const buy = [...host.querySelectorAll("button")].find((b) => b.textContent === copyPtBr.whatsapp.ctaLabel);
+    expect(buy?.disabled).toBe(true);
+    expect(host.textContent).toContain(copyPtBr.cart.noNumber);
+    await act(async () => root.unmount());
   });
 });

@@ -130,6 +130,7 @@ const outcomeMessage = {
   revalidation_failed: null, // o aviso de revalidação já aparece com o botão de tentar de novo
   nothing_to_send: copy.nothingToSend,
   too_long: copy.tooLong,
+  error: copy.sendError,
 } as const;
 
 export function CartDrawer() {

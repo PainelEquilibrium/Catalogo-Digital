@@ -48,7 +48,8 @@ export type SendOutcome =
   | "no_number"
   | "revalidation_failed"
   | "nothing_to_send"
-  | "too_long";
+  | "too_long"
+  | "error";
 
 type CartContextValue = {
   config: CartConfig;
@@ -179,40 +180,46 @@ export function CartProvider({ config, children }: { config: CartConfig; childre
         return outcome;
       };
 
-      const lines = given ?? stateRef.current.lines;
-      const fresh = given === null ? await revalidate() : await fetchProducts(uniqueIds(lines));
-      if (!fresh) return fail("revalidation_failed");
+      try {
+        const lines = given ?? stateRef.current.lines;
+        const fresh = given === null ? await revalidate() : await fetchProducts(uniqueIds(lines));
+        if (!fresh) return fail("revalidation_failed");
 
-      const orderLines = lines.flatMap((line) => {
-        const product = fresh.get(line.productId);
-        return product
-          ? [{
-              name: product.name,
-              selections: line.selections,
-              qty: line.qty,
-              price: product.price,
-              promoPrice: product.promoPrice,
-              url: `${config.siteUrl}/produto/${product.slug}`,
-            }]
-          : [];
-      });
-      if (orderLines.length === 0) return fail("nothing_to_send");
+        const orderLines = lines.flatMap((line) => {
+          const product = fresh.get(line.productId);
+          return product
+            ? [{
+                name: product.name,
+                selections: line.selections,
+                qty: line.qty,
+                price: product.price,
+                promoPrice: product.promoPrice,
+                url: `${config.siteUrl}/produto/${product.slug}`,
+              }]
+            : [];
+        });
+        if (orderLines.length === 0) return fail("nothing_to_send");
 
-      const message = buildOrderMessage({
-        lines: orderLines,
-        itemTemplate: config.itemTemplate,
-        orderTemplate: config.orderTemplate,
-        showPrices: config.showPrices,
-        currency: config.currency,
-      });
-      const built = buildOrderWhatsappUrl(number, message);
-      if (!built.ok) return fail("too_long");
+        const message = buildOrderMessage({
+          lines: orderLines,
+          itemTemplate: config.itemTemplate,
+          orderTemplate: config.orderTemplate,
+          showPrices: config.showPrices,
+          currency: config.currency,
+        });
+        const built = buildOrderWhatsappUrl(number, message);
+        if (!built.ok) return fail("too_long");
 
-      if (tab) tab.location.href = built.url;
-      else window.location.assign(built.url);
-      trackWhatsappClick(window.location.pathname, slug, orderLines.length);
-      if (given === null) setSent(true);
-      return "sent";
+        // Registra antes de navegar: no fallback de mesma aba o código depois do assign pode não rodar.
+        trackWhatsappClick(window.location.pathname, slug, orderLines.length);
+        if (given === null) setSent(true);
+        if (tab) tab.location.href = built.url;
+        else window.location.assign(built.url);
+        return "sent";
+      } catch {
+        // Qualquer falha ao montar a mensagem não pode deixar uma aba em branco aberta.
+        return fail("error");
+      }
     },
     [config, hasNumber, revalidate],
   );

@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 
+// Com spec na linha de comando o Playwright rodaria o projeto "chromium" inteiro antes: sem
+// dependência nesse caso, o comando por arquivo roda só aquele spec.
+const runsSpecFile = process.argv.slice(2).some((arg) => /\.spec\.ts$/.test(arg));
+
 const e2eEnv = {
   WHATSAPP_NUMBER: "5511999998888",
   NEXT_PUBLIC_GTM_ID: "",
@@ -39,7 +43,7 @@ export default defineConfig({
     {
       name: "chromium-global-settings",
       testMatch: "**/admin-configuracoes.spec.ts",
-      dependencies: ["chromium"],
+      dependencies: runsSpecFile ? [] : ["chromium"],
       use: { ...devices["Desktop Chrome"] },
     },
   ],
