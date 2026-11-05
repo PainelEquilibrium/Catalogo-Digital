@@ -133,6 +133,7 @@ export const copyAdminPtBr = {
     fieldType: "Tipo",
     fieldRequired: "Obrigatório",
     fieldFilterable: "Usar como filtro na vitrine",
+    fieldCustomerSelects: "Cliente escolhe",
     fieldPlaceholder: "Placeholder",
     fieldOptions: "Opções",
     optionPlaceholder: "Nova opção",

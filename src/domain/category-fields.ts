@@ -20,6 +20,7 @@ const categoryFieldSchema = z.object({
   filterable: z.boolean().optional(),
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
+  customer_selects: z.boolean().optional(),
 });
 
 export type CategoryField = z.infer<typeof categoryFieldSchema>;
@@ -47,6 +48,18 @@ const fieldsSchema = z.array(categoryFieldSchema).superRefine((fields, ctx) => {
         code: "custom",
         message: "select and multiselect require non-empty options",
         path: [index, "options"],
+      });
+    }
+
+    if (
+      field.customer_selects === true &&
+      field.type !== "select" &&
+      field.type !== "multiselect"
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "customer_selects only applies to select and multiselect",
+        path: [index, "customer_selects"],
       });
     }
   }

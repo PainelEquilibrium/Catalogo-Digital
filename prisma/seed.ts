@@ -11,6 +11,7 @@ const FIELDS_SCHEMA = [
     type: "multiselect",
     filterable: true,
     options: ["Preto", "Branco", "Bege", "Azul", "Rosa", "Jeans"],
+    customer_selects: true,
   },
   {
     key: "tamanho",
@@ -18,6 +19,7 @@ const FIELDS_SCHEMA = [
     type: "multiselect",
     filterable: true,
     options: ["PP", "P", "M", "G", "GG"],
+    customer_selects: true,
   },
   {
     key: "composicao",

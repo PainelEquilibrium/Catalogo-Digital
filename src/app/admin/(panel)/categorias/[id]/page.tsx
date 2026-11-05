@@ -46,6 +46,7 @@ export default async function AdminEditCategoryPage({ params }: PageProps) {
             filterable: field.filterable ?? false,
             options: field.options ?? [],
             placeholder: field.placeholder,
+            customerSelects: field.customer_selects === true,
           })),
           coverImageUrl: category.coverImageUrl,
         }}

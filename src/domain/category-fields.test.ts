@@ -67,3 +67,42 @@ describe("parseFieldsSchema", () => {
     });
   });
 });
+
+describe("customer_selects", () => {
+  it("aceita customer_selects em select e multiselect", () => {
+    expect(() =>
+      parseFieldsSchema([
+        {
+          key: "cor",
+          label: "Cor",
+          type: "select",
+          options: ["Preto"],
+          customer_selects: true,
+        },
+        {
+          key: "tamanho",
+          label: "Tamanho",
+          type: "multiselect",
+          options: ["P"],
+          customer_selects: true,
+        },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("rejeita customer_selects em campo text", () => {
+    expect(() =>
+      parseFieldsSchema([
+        { key: "composicao", label: "Composição", type: "text", customer_selects: true },
+      ]),
+    ).toThrow();
+  });
+
+  it("aceita schema antigo sem customer_selects", () => {
+    expect(() =>
+      parseFieldsSchema([
+        { key: "cor", label: "Cor", type: "multiselect", options: ["Preto"] },
+      ]),
+    ).not.toThrow();
+  });
+});

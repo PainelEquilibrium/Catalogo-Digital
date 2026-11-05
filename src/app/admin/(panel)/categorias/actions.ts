@@ -56,6 +56,7 @@ type SaveFieldInput = {
   filterable: boolean;
   options: string[];
   placeholder?: string;
+  customerSelects: boolean;
 };
 
 function persistFilterable(type: FieldType, filterable: boolean): boolean {
@@ -77,6 +78,9 @@ function buildFieldsSchema(fields: SaveFieldInput[]) {
     };
     if (field.type === "select" || field.type === "multiselect") {
       base.options = field.options;
+      if (field.customerSelects) {
+        base.customer_selects = true;
+      }
     }
     if (field.placeholder?.trim()) {
       base.placeholder = field.placeholder.trim();

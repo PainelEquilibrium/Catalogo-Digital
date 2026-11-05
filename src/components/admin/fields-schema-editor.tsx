@@ -27,6 +27,7 @@ export type FieldEditorRow = {
   filterable: boolean;
   options: string[];
   placeholder?: string;
+  customerSelects: boolean;
 };
 
 type FieldsSchemaEditorProps = {
@@ -68,6 +69,7 @@ function newFieldRow(): FieldEditorRow {
     required: false,
     filterable: false,
     options: [],
+    customerSelects: false,
   };
 }
 
@@ -102,6 +104,7 @@ export function FieldsSchemaEditor({ fields, onChange }: FieldsSchemaEditorProps
         }
         if (patch.type && !showsOptions(patch.type)) {
           next.options = [];
+          next.customerSelects = false;
         }
         return next;
       }),
@@ -232,6 +235,15 @@ export function FieldsSchemaEditor({ fields, onChange }: FieldsSchemaEditorProps
 
             {showsOptions(field.type) ? (
               <div className="space-y-2">
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={field.customerSelects}
+                    onCheckedChange={(checked) =>
+                      updateField(index, { customerSelects: checked === true })
+                    }
+                  />
+                  {copy.fieldCustomerSelects}
+                </label>
                 <Label>{copy.fieldOptions}</Label>
                 <div className="space-y-2">
                   {field.options.map((option, optionIndex) => (
