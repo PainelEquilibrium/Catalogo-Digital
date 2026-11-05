@@ -37,6 +37,9 @@ export const copyPtBr = {
   whatsapp: {
     ctaLabel: "Comprar pelo WhatsApp",
     ctaLabelShort: "WhatsApp",
+    orderTotal: "Total",
+    orderPendingItems: "+ itens a confirmar",
+    orderAllPending: "a confirmar",
   },
   share: {
     share: "Compartilhar",
