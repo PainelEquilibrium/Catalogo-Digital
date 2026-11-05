@@ -204,6 +204,15 @@ pnpm exec tsx scripts/migrate-image-variants.ts --project-ref fzmnuodimupkmptdvf
 
 O manifesto e seu journal contêm dados operacionais: preservar fora do Git, assim como tokens, credenciais e dumps. Revisar o journal após interrupção antes de reexecutar. Não apresentar comandos documentados como execução concluída.
 
+### Variante OG em JPG
+
+`scripts/migrate-og-to-jpg.ts` gera `variants/<entidade>/<uuid>-og.jpg` a partir do original privado e aponta `og_url` (produtos) e `cover_og_url` (categorias) para ele. Simulação por padrão; `--apply` grava. Ordem: upload do JPG, depois update condicional e enfileiramento do `-og.webp` antigo na mesma transação (a fila diária remove o WebP; o script não drena). Falha de uma foto remove o JPG recém-criado e segue para as outras. Linhas já em `.jpg` e originais fora do padrão (seed) são puladas, então repetir é seguro. Sem rollback automático. Usa a chave de serviço do `.env` e a mesma checagem de projeto da transição acima (só o DEV `fzmnuodimupkmptdvfee`).
+
+```bash
+pnpm exec tsx scripts/migrate-og-to-jpg.ts --project-ref fzmnuodimupkmptdvfee
+pnpm exec tsx scripts/migrate-og-to-jpg.ts --project-ref fzmnuodimupkmptdvfee --apply
+```
+
 ### Retorno condicional
 
 Pausar mutações, simular com `--rollback` (sem `--apply`), revisar conflitos e só então executar `--rollback --apply` sobre o mesmo manifesto. Atualizar apenas referências ainda correspondentes às URLs novas registradas; não sobrescrever edições posteriores. O retorno recupera URLs antigas possivelmente inválidas, sem garantir exibição funcional. Manter os dois buckets e suporte aos dois layouts, sobretudo após novos uploads. Não retornar isoladamente para código de bucket único nem excluir o bucket público.
