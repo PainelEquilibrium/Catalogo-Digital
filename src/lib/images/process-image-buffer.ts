@@ -86,9 +86,11 @@ async function resizeOg(input: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-export async function processImageBuffer(
+// Recusa HEIC e formatos fora de JPEG/PNG/WebP e imagens com lado menor abaixo de minSide.
+export async function readValidatedDimensions(
   input: Buffer,
-): Promise<ProcessedImageBuffers> {
+  minSide: number,
+): Promise<{ width: number; height: number }> {
   if (looksLikeHeicBuffer(input)) {
     throw new Error("HEIC images are not supported");
   }
@@ -97,9 +99,16 @@ export async function processImageBuffer(
   assertAcceptedFormat(meta);
 
   const { width, height } = await orientedDimensions(input);
-  if (Math.min(width, height) < 800) {
-    throw new Error("Image smallest side must be at least 800px");
+  if (Math.min(width, height) < minSide) {
+    throw new Error(`Image smallest side must be at least ${minSide}px`);
   }
+  return { width, height };
+}
+
+export async function processImageBuffer(
+  input: Buffer,
+): Promise<ProcessedImageBuffers> {
+  const { width, height } = await readValidatedDimensions(input, 800);
 
   const [thumb, card, detail, og] = await Promise.all([
     resizeMaxSide(input, IMAGE_VARIANTS.thumb.maxSide),

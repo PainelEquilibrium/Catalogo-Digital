@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
+import { AssetUpload } from "@/components/admin/settings/asset-upload";
 import { SectionCard } from "@/components/admin/settings/section-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,8 +40,12 @@ export function StoreSection({ branding }: { branding: Branding }) {
       <Field label={copy.storeTagline} htmlFor="store-tagline">
         <Textarea id="store-tagline" rows={2} {...form.register("store.tagline")} />
       </Field>
-      {/* Task 16: componentes de upload de logo claro/escuro e ícone entram aqui. */}
-      <p className="text-sm text-muted-foreground">{copy.storeAssetsHint}</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <AssetUpload kind="logo_light" label={copy.logoLight} src={branding.store.logo.light} />
+        <AssetUpload kind="logo_dark" label={copy.logoDark} src={branding.store.logo.dark} dark />
+        <AssetUpload kind="icon_light" label={copy.iconLight} src={branding.store.icon.light} />
+        <AssetUpload kind="icon_dark" label={copy.iconDark} src={branding.store.icon.dark} dark />
+      </div>
     </SectionCard>
   );
 }
@@ -123,7 +128,7 @@ export function HomeSection({ branding }: { branding: Branding }) {
           <Input id="hero-cta-link" {...form.register("hero.cta_link")} />
         </Field>
       </div>
-      {/* Task 16: upload da imagem do banner entra aqui. */}
+      <AssetUpload kind="hero" label={copy.heroImage} src={h.image_url} />
       <h3 className="pt-2 text-sm font-semibold">{copy.sectionsTitle}</h3>
       {SECTION_KEYS.map((key) => (
         <div key={key} className="grid items-end gap-3 sm:grid-cols-[1fr_8rem_auto]">

@@ -1,4 +1,6 @@
+import { createClient } from "@supabase/supabase-js";
 import { test, expect, type Page } from "@playwright/test";
+import sharp from "sharp";
 import { copyAdminPtBr } from "../src/lib/copy/admin-pt-br";
 import { createE2eAccount, db, deleteE2eAccount, type E2eAccount } from "./support/cleanup";
 
@@ -19,7 +21,21 @@ test.beforeAll(async () => {
   manager = await createE2eAccount({ mustChangePassword: false });
 });
 
+const STORE_ASSETS = "variants/00000000-0000-4000-8000-000000000001/";
+const storeObjects = async (): Promise<string[]> =>
+  (await db.query("select name from storage.objects where bucket_id = 'product-image-variants' and name like $1", [`${STORE_ASSETS}%`]))
+    .rows.map((r: { name: string }) => r.name);
+
 test.afterAll(async () => {
+  // Rede de segurança: se um teste caiu no meio, nenhum arquivo enviado fica no bucket.
+  const left = await storeObjects();
+  if (left.length) {
+    const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await admin.storage.from("product-image-variants").remove(left);
+  }
+  await db.query("delete from storage_deletions where path like $1", [`${STORE_ASSETS}%`]);
   await db.query("delete from store_settings");
   for (const row of snapshot) {
     await db.query("insert into store_settings (key, value, updated_by) values ($1, $2::jsonb, $3)", [
@@ -137,4 +153,72 @@ test("desligar preços pede confirmação e a vitrine deixa de mostrar preços",
   await section(page, copy.sectionLabels.behavior).getByRole("button", { name: copy.restore }).click();
   await expect(page.getByText(copy.restored)).toBeVisible({ timeout: 30_000 });
   expect(await entityAudit("settings_restore", "behavior")).toBe(1);
+});
+
+const png = (size: number, color: string) =>
+  sharp({ create: { width: size, height: size, channels: 4, background: color } }).png().toBuffer();
+const settingValue = async (key: string) =>
+  (await db.query("select value from store_settings where key = $1", [key])).rows[0]?.value;
+const objectName = (url: string) => url.split("/product-image-variants/")[1];
+
+test("logo e hero enviados aparecem na vitrine; o anterior sai do bucket; restaurar limpa tudo", async ({ page }) => {
+  test.setTimeout(240_000);
+  await login(page, owner);
+  await page.goto("/admin/configuracoes");
+  await page.waitForLoadState("networkidle");
+  const store = section(page, copy.sectionLabels.store);
+  const upload = async (label: string, buffer: Buffer) => {
+    await store.getByLabel(label).setInputFiles({ name: "arquivo.png", mimeType: "image/png", buffer });
+  };
+
+  // Logo pequeno demais é recusado e nada é gravado.
+  await upload(copy.logoLight, await png(32, "#ff0000"));
+  await expect(page.getByText(copy.assetTooSmall.replace("{min}", "64"))).toBeVisible({ timeout: 30_000 });
+  expect(await settingValue("store")).toBeUndefined();
+
+  await upload(copy.logoLight, await png(200, "#ff0000"));
+  await expect.poll(async () => (await settingValue("store"))?.logo?.light, { timeout: 60_000 }).toContain("/product-image-variants/");
+  const first = (await settingValue("store")).logo.light as string;
+  const firstOg = (await settingValue("share")).og_image as string;
+  expect((await page.request.get(first)).status()).toBe(200);
+  expect((await page.request.get(firstOg)).headers()["content-type"]).toContain("image/jpeg");
+
+  await upload(copy.logoLight, await png(300, "#0000ff"));
+  await expect.poll(async () => (await settingValue("store")).logo.light, { timeout: 60_000 }).not.toBe(first);
+  const second = (await settingValue("store")).logo.light as string;
+  const secondOg = (await settingValue("share")).og_image as string;
+  // O logo anterior e o OG anterior saem do bucket e da fila.
+  await expect.poll(storeObjects, { timeout: 60_000 }).toEqual([objectName(second), objectName(secondOg)].sort());
+  expect((await db.query("select 1 from storage_deletions where path like $1", [`${STORE_ASSETS}%`])).rowCount).toBe(0);
+
+  // Salvar o nome depois do upload não perde o logo.
+  await store.getByLabel(copy.storeName).fill(storeName);
+  await store.getByRole("button", { name: copy.save }).click();
+  await expect.poll(async () => (await settingValue("store")).name, { timeout: 30_000 }).toBe(storeName);
+  expect((await settingValue("store")).logo.light).toBe(second);
+
+  await page.goto("/");
+  await expect(page.locator(`img[src*="${encodeURIComponent(objectName(second))}"]`).first()).toBeAttached();
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", secondOg);
+
+  await expect.poll(() => entityAudit("settings_update", "store"), { timeout: 30_000 }).toBeGreaterThanOrEqual(3);
+
+  // Banner da home.
+  await page.goto("/admin/configuracoes");
+  await page.waitForLoadState("networkidle");
+  await section(page, copy.sectionLabels.home).getByLabel(copy.heroImage).setInputFiles({ name: "hero.png", mimeType: "image/png", buffer: await png(900, "#00aa00") });
+  await expect.poll(async () => (await settingValue("hero"))?.image_url, { timeout: 60_000 }).toContain("/product-image-variants/");
+  const hero = (await settingValue("hero")).image_url as string;
+  expect((await page.request.get(hero)).status()).toBe(200);
+
+  // Restaurar volta aos arquivos locais e esvazia o bucket.
+  await section(page, copy.sectionLabels.home).getByRole("button", { name: copy.restore }).click();
+  await expect(page.getByText(copy.restored)).toBeVisible({ timeout: 30_000 });
+  await section(page, copy.sectionLabels.store).getByRole("button", { name: copy.restore }).click();
+  await expect.poll(storeObjects, { timeout: 60_000 }).toEqual([]);
+  expect((await db.query("select 1 from storage_deletions where path like $1", [`${STORE_ASSETS}%`])).rowCount).toBe(0);
+  expect(await settingValue("share")).toBeUndefined();
+  expect(await settingValue("hero")).toBeUndefined();
+  await page.goto("/");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /og-padrao\.jpg$/);
 });
