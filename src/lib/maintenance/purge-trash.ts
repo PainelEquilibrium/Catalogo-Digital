@@ -88,36 +88,64 @@ export async function purgeCategory(id: string, actor: AuditActor): Promise<"pur
   return "purged";
 }
 
+type Row = { id: string; deletedAt: Date | null };
+
+// Pagina por cursor (deletedAt, id) pulando o que falhou, até `batchSize` itens saírem ou acabarem os expirados.
+// Assim itens que nunca saem (falha persistente) não monopolizam o lote.
+async function sweepExpired(
+  cutoff: Date,
+  batchSize: number,
+  find: (where: { AND: object[] }, take: number) => Promise<Row[]>,
+  purge: (id: string) => Promise<boolean>,
+  onError: (id: string) => void,
+): Promise<number> {
+  let purged = 0;
+  let after: Row | null = null;
+  while (purged < batchSize) {
+    const and: object[] = [{ deletedAt: { lte: cutoff } }];
+    if (after) and.push({ OR: [{ deletedAt: { gt: after.deletedAt } }, { deletedAt: after.deletedAt, id: { gt: after.id } }] });
+    const page = await find({ AND: and }, batchSize);
+    for (const row of page) {
+      after = row;
+      try {
+        if (await purge(row.id)) purged++;
+      } catch {
+        onError(row.id);
+      }
+      if (purged >= batchSize) break;
+    }
+    if (page.length < batchSize) break;
+  }
+  return purged;
+}
+
 // Produtos antes de categorias: a categoria só sai depois que o último produto dela sai.
 // Uma falha isola o item (só o id vai para o log) e conta em `failed`.
 export async function purgeExpiredTrash(now: Date, batchSize = 100) {
   const cutoff = new Date(now.getTime() - TRASH_RETENTION_DAYS * DAY_MS);
-  const where = { deletedAt: { lte: cutoff } };
-  const select = { id: true };
-  const orderBy = { deletedAt: "asc" as const };
+  const select = { id: true, deletedAt: true };
+  const orderBy = [{ deletedAt: "asc" as const }, { id: "asc" as const }];
   const result = { products: 0, categories: 0, blocked: 0, failed: 0 };
 
-  const products = await prisma.product.findMany({ where, select, orderBy, take: batchSize });
-  for (const { id } of products) {
-    try {
-      if (await purgeProduct(id, SYSTEM_ACTOR) === "purged") result.products++;
-    } catch {
-      result.failed++;
-      console.error("Purge product failed", { id });
-    }
-  }
+  result.products = await sweepExpired(
+    cutoff, batchSize,
+    (where, take) => prisma.product.findMany({ where, select, orderBy, take }),
+    async (id) => (await purgeProduct(id, SYSTEM_ACTOR)) === "purged",
+    (id) => { result.failed++; console.error("Purge product failed", { id }); },
+  );
 
-  const categories = await prisma.category.findMany({ where, select, orderBy, take: batchSize });
-  for (const { id } of categories) {
-    try {
+  // Sem filtro de deletedAt na relação: produto na lixeira também bloqueia.
+  result.categories = await sweepExpired(
+    cutoff, batchSize,
+    (where, take) => prisma.category.findMany({ where: { ...where, products: { none: {} } }, select, orderBy, take }),
+    async (id) => {
       const outcome = await purgeCategory(id, SYSTEM_ACTOR);
-      if (outcome === "purged") result.categories++;
-      else if (outcome === "has_products") result.blocked++;
-    } catch {
-      result.failed++;
-      console.error("Purge category failed", { id });
-    }
-  }
+      if (outcome === "has_products") result.blocked++; // corrida: ganhou produto após a consulta
+      return outcome === "purged";
+    },
+    (id) => { result.failed++; console.error("Purge category failed", { id }); },
+  );
+  result.blocked += await prisma.category.count({ where: { deletedAt: { lte: cutoff }, products: { some: {} } } });
   return result;
 }
 

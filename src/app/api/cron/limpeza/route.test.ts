@@ -19,6 +19,7 @@ it("sem header, ou com segredo errado, responde 401", async () => {
   expect((await GET(req())).status).toBe(401);
   expect((await GET(req("Bearer errado"))).status).toBe(401);
   expect((await GET(req("Bearer curto"))).status).toBe(401);
+  expect((await GET(req("Bearer segredx"))).status).toBe(401);
   expect(m.purge).not.toHaveBeenCalled();
 });
 

@@ -4,7 +4,7 @@ const DAY = 86_400_000;
 const now = new Date("2026-11-04T12:00:00Z");
 const ago = (d: number) => new Date(now.getTime() - d * DAY);
 
-type Row = { id: string; deletedAt: Date };
+type Row = { id: string; deletedAt: Date; blocked?: boolean };
 const m = vi.hoisted(() => ({
   products: [] as Row[],
   categories: [] as Row[],
@@ -15,9 +15,24 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma/client", () => {
-  type Where = { deletedAt: { lte: Date } };
-  const find = (name: "products" | "categories") => async ({ where }: { where: Where }) =>
-    m[name].filter((r) => r.deletedAt <= where.deletedAt.lte).map((r) => ({ id: r.id }));
+  type Cond = { deletedAt?: { lte?: Date; gt?: Date } | Date; id?: { gt: string }; OR?: Cond[] };
+  type Where = { AND: Cond[]; products?: { none?: object } };
+  const match = (r: Row, c: Cond): boolean => {
+    if (c.OR) return c.OR.some((o) => match(r, o));
+    const d = c.deletedAt;
+    if (d instanceof Date && r.deletedAt.getTime() !== d.getTime()) return false;
+    if (d && !(d instanceof Date)) {
+      if (d.lte && !(r.deletedAt <= d.lte)) return false;
+      if (d.gt && !(r.deletedAt > d.gt)) return false;
+    }
+    return !c.id || r.id > c.id.gt;
+  };
+  const find = (name: "products" | "categories") => async ({ where, take }: { where: Where; take: number }) =>
+    m[name]
+      .filter((r) => where.AND.every((c) => match(r, c)) && !(where.products?.none && r.blocked))
+      .sort((a, b) => a.deletedAt.getTime() - b.deletedAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, take)
+      .map((r) => ({ id: r.id, deletedAt: r.deletedAt }));
   const tx = {
     product: {
       count: m.productCount,
@@ -51,7 +66,7 @@ vi.mock("@/lib/prisma/client", () => {
     prisma: {
       $transaction: (fn: (t: unknown) => unknown) => fn(tx),
       product: { findMany: find("products") },
-      category: { findMany: find("categories") },
+      category: { findMany: find("categories"), count: async () => m.categories.filter((c) => c.blocked).length },
       auditLog: {
         deleteMany: async ({ where }: { where: { createdAt: { lt: Date } } }) => {
           const before = m.auditRows.length;
@@ -89,9 +104,41 @@ it("processa produtos antes de categorias", async () => {
 });
 
 it("categoria bloqueada conta em blocked, sem erro", async () => {
+  m.categories = [{ id: "c1", deletedAt: ago(40), blocked: true }];
+  expect(await purgeExpiredTrash(now)).toEqual({ products: 0, categories: 0, blocked: 1, failed: 0 });
+});
+
+it("categoria que ganha produto na corrida conta em blocked", async () => {
   m.categories = [{ id: "c1", deletedAt: ago(40) }];
   m.productCount.mockResolvedValue(2);
   expect(await purgeExpiredTrash(now)).toEqual({ products: 0, categories: 0, blocked: 1, failed: 0 });
+});
+
+it("batchSize=1 com 3 expirados remove 1 e a próxima execução continua", async () => {
+  m.products = [1, 2, 3].map((n) => ({ id: `p${n}`, deletedAt: ago(40 + n) }));
+  expect((await purgeExpiredTrash(now, 1)).products).toBe(1);
+  expect(m.products).toHaveLength(2);
+  expect((await purgeExpiredTrash(now, 1)).products).toBe(1);
+  expect(m.products).toHaveLength(1);
+});
+
+it("produtos que falham à frente não impedem o que pode sair", async () => {
+  m.products = [
+    { id: "bad1", deletedAt: ago(50) }, { id: "bad2", deletedAt: ago(49) }, { id: "ok", deletedAt: ago(48) },
+  ];
+  m.failProduct.add("bad1"); m.failProduct.add("bad2");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(await purgeExpiredTrash(now, 2)).toMatchObject({ products: 1, failed: 2 });
+  expect(m.products.map((p) => p.id)).toEqual(["bad1", "bad2"]);
+});
+
+it("muitas categorias bloqueadas à frente não impedem a que pode sair", async () => {
+  m.categories = [
+    ...[1, 2, 3].map((n) => ({ id: `b${n}`, deletedAt: ago(60 + n), blocked: true })),
+    { id: "free", deletedAt: ago(35) },
+  ];
+  expect(await purgeExpiredTrash(now, 2)).toEqual({ products: 0, categories: 1, blocked: 3, failed: 0 });
+  expect(m.categories.map((c) => c.id).sort()).toEqual(["b1", "b2", "b3"]);
 });
 
 it("rodar de novo não causa erro", async () => {
