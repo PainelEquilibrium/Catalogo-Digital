@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { markdownToHtml } from "@/lib/legal/markdown-to-html";
-import { parseSectionInput, sectionKeys } from "@/domain/settings-sections";
+import { mergeSettingValue, parseSectionInput, sectionKeys } from "@/domain/settings-sections";
 
 describe("parseSectionInput", () => {
   it("cor inválida é recusada", () => {
@@ -58,5 +58,12 @@ describe("markdown legal", () => {
     const html = markdownToHtml("Oi <script>alert(1)</script>");
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("mergeSettingValue", () => {
+  it("salvar o nome preserva o logo já gravado", () => {
+    const logo = { light: "/a.webp", dark: "/b.webp" };
+    expect(mergeSettingValue({ name: "Velho", logo }, { name: "Novo" })).toEqual({ name: "Novo", logo });
   });
 });

@@ -32,4 +32,25 @@ describe("ações de configurações", () => {
     expect(result).toEqual({ ok: false, message: copyAdminPtBr.settings.errorInvalid });
     expect(m.transaction).not.toHaveBeenCalled();
   });
+
+  it("salvar o nome preserva o logo que já está na chave", async () => {
+    vi.mocked(requireAction).mockResolvedValue({ userId: "o", email: "o@x.y", name: "Dona", role: "owner" });
+    const logo = { light: "/a.webp", dark: "/b.webp" };
+    const tx = {
+      storeSetting: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue({ key: "store", value: { name: "Velho", logo } }),
+        upsert: vi.fn(),
+      },
+      auditLog: { create: vi.fn() },
+    };
+    m.transaction.mockImplementation(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx));
+
+    const result = await saveSettingsSection("store", { store: { name: "Novo" } });
+
+    expect(result).toEqual({ ok: true });
+    expect(tx.storeSetting.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ value: { name: "Novo", logo } }) }),
+    );
+  });
 });

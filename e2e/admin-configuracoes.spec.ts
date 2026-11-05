@@ -46,6 +46,12 @@ const auditCount = async (action: string) =>
   (await db.query("select count(*)::int as n from audit_log where actor_id = $1 and action = $2", [owner.id, action]))
     .rows[0].n;
 
+const entityAudit = async (action: string, entityId: string) =>
+  (await db.query(
+    "select count(*)::int as n from audit_log where actor_id = $1 and action = $2 and entity_type = 'settings' and entity_id = $3",
+    [owner.id, action, entityId],
+  )).rows[0].n;
+
 test("gestor é negado na tela e não vê o menu", async ({ page }) => {
   await login(page, manager);
   await expect(page.getByRole("link", { name: copyAdminPtBr.chrome.settings })).toHaveCount(0);
@@ -90,12 +96,15 @@ test("dono altera os termos e /termos reflete", async ({ page }) => {
   await section(page, copy.sectionLabels.legal).getByRole("button", { name: copy.save }).click();
   await expect(page.getByText(copy.saved)).toBeVisible({ timeout: 30_000 });
 
+  expect(await entityAudit("settings_update", "legal")).toBe(1);
+
   await page.goto("/termos");
   await expect(page.getByText(termsText)).toBeVisible();
 
   await page.goto("/admin/configuracoes");
   await section(page, copy.sectionLabels.legal).getByRole("button", { name: copy.restore }).click();
   await expect(page.getByText(copy.restored)).toBeVisible({ timeout: 30_000 });
+  expect(await entityAudit("settings_restore", "legal")).toBe(1);
   await page.goto("/termos");
   await expect(page.getByText(termsText)).toHaveCount(0);
   await expect(page.getByText(/suporte técnico/i).first()).toBeVisible();
@@ -118,6 +127,7 @@ test("desligar preços pede confirmação e a vitrine deixa de mostrar preços",
   expect(early.rowCount).toBe(0);
   await dialog.getByRole("button", { name: copy.showPricesConfirmAction }).click();
   await expect(page.getByText(copy.saved)).toBeVisible({ timeout: 30_000 });
+  expect(await entityAudit("settings_update", "behavior")).toBe(1);
 
   await page.goto("/busca");
   await expect(page.getByRole("article").first()).toBeVisible();
@@ -126,4 +136,5 @@ test("desligar preços pede confirmação e a vitrine deixa de mostrar preços",
   await page.goto("/admin/configuracoes");
   await section(page, copy.sectionLabels.behavior).getByRole("button", { name: copy.restore }).click();
   await expect(page.getByText(copy.restored)).toBeVisible({ timeout: 30_000 });
+  expect(await entityAudit("settings_restore", "behavior")).toBe(1);
 });
