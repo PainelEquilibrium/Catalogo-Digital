@@ -1,5 +1,5 @@
 import type { AuditActor } from "@/lib/audit/record";
-import { recordAudit } from "@/lib/audit/record";
+import { recordAudit, SYSTEM_ACTOR } from "@/lib/audit/record";
 import { storageObjectsForPersistedImage, type StorageObjectRef } from "@/lib/images/upload";
 import { prisma } from "@/lib/prisma/client";
 import { drainStorageDeletions, enqueueStorageDeletions } from "./storage-queue";
@@ -86,4 +86,44 @@ export async function purgeCategory(id: string, actor: AuditActor): Promise<"pur
   }
   await drainQuietly(objects);
   return "purged";
+}
+
+// Produtos antes de categorias: a categoria só sai depois que o último produto dela sai.
+// Uma falha isola o item (só o id vai para o log) e conta em `failed`.
+export async function purgeExpiredTrash(now: Date, batchSize = 100) {
+  const cutoff = new Date(now.getTime() - TRASH_RETENTION_DAYS * DAY_MS);
+  const where = { deletedAt: { lte: cutoff } };
+  const select = { id: true };
+  const orderBy = { deletedAt: "asc" as const };
+  const result = { products: 0, categories: 0, blocked: 0, failed: 0 };
+
+  const products = await prisma.product.findMany({ where, select, orderBy, take: batchSize });
+  for (const { id } of products) {
+    try {
+      if (await purgeProduct(id, SYSTEM_ACTOR) === "purged") result.products++;
+    } catch {
+      result.failed++;
+      console.error("Purge product failed", { id });
+    }
+  }
+
+  const categories = await prisma.category.findMany({ where, select, orderBy, take: batchSize });
+  for (const { id } of categories) {
+    try {
+      const outcome = await purgeCategory(id, SYSTEM_ACTOR);
+      if (outcome === "purged") result.categories++;
+      else if (outcome === "has_products") result.blocked++;
+    } catch {
+      result.failed++;
+      console.error("Purge category failed", { id });
+    }
+  }
+  return result;
+}
+
+export async function pruneOldAudit(now: Date): Promise<number> {
+  const cutoff = new Date(now);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - 12);
+  const { count } = await prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
+  return count;
 }
