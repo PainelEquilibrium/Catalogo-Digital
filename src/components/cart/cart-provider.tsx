@@ -174,13 +174,13 @@ export function CartProvider({ config, children }: { config: CartConfig; childre
 
       // O bloqueador de pop-up só aceita abrir aba dentro do clique: abre já e preenche depois.
       const tab = window.open("", "_blank");
-      if (tab) tab.opener = null;
       const fail = (outcome: SendOutcome) => {
         tab?.close();
         return outcome;
       };
 
       try {
+        if (tab) tab.opener = null;
         const lines = given ?? stateRef.current.lines;
         const fresh = given === null ? await revalidate() : await fetchProducts(uniqueIds(lines));
         if (!fresh) return fail("revalidation_failed");
@@ -211,7 +211,11 @@ export function CartProvider({ config, children }: { config: CartConfig; childre
         if (!built.ok) return fail("too_long");
 
         // Registra antes de navegar: no fallback de mesma aba o código depois do assign pode não rodar.
-        trackWhatsappClick(window.location.pathname, slug, orderLines.length);
+        try {
+          trackWhatsappClick(window.location.pathname, slug, orderLines.length);
+        } catch {
+          // Analytics nunca bloqueia o pedido.
+        }
         if (given === null) setSent(true);
         if (tab) tab.location.href = built.url;
         else window.location.assign(built.url);
