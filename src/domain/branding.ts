@@ -2,8 +2,10 @@ import { z } from "zod";
 
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
-// Caminho local em /public (ex.: /images/logo.webp) ou URL absoluta.
-const assetPath = z.string().regex(/^(\/|https?:\/\/)\S+$/);
+// Caminho local em /public (ex.: /images/logo.webp) ou URL absoluta; sem //host, /\host nem "..".
+const assetPath = z.string().regex(
+  /^(?!.*(?:^|[/\\])\.\.(?:[/\\?#]|$))(?:\/(?![/\\])|https?:\/\/)\S+$/,
+);
 
 const themeAssetSchema = z.object({
   light: assetPath,

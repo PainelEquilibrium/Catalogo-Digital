@@ -206,6 +206,43 @@ describe("padrões de imagem e modelos", () => {
   });
 });
 
+describe("assetPath e overrides legados", () => {
+  const withHero = (image_url: string) => ({ ...validFileBranding.hero, image_url });
+
+  it("hero.image_url rejeita valores perigosos e aceita local ou https", () => {
+    for (const bad of ["javascript:alert(1)", "//host/x.jpg", "/\\host/x.jpg", "/a/../b.jpg", "/..", ""]) {
+      expect(() => parseBranding({ ...validFileBranding, hero: withHero(bad) }), bad).toThrow();
+    }
+    for (const ok of ["/images/hero-padrao.webp", "https://example.com/h.jpg"]) {
+      expect(parseBranding({ ...validFileBranding, hero: withHero(ok) }).hero.image_url).toBe(ok);
+    }
+  });
+
+  it("share antigo com og_home_image e og_category_fallback ainda faz parse", () => {
+    const result = resolveBrandingLayers({
+      fromDb: { share: { og_home_image: "https://x.com/a.png", og_category_fallback: "https://x.com/b.png" } },
+      fromFile: validFileBranding,
+    });
+    expect(result.share.og_image).toBe(validFileBranding.share.og_image);
+  });
+
+  it("og_image inválido no banco cai para a camada do JSON", () => {
+    const result = resolveBrandingLayers({
+      fromDb: { share: { og_image: "//evil.com/x.jpg" } },
+      fromFile: validFileBranding,
+    });
+    expect(result.share.og_image).toBe(validFileBranding.share.og_image);
+  });
+
+  it("preserva whatsapp_message_default legado do banco", () => {
+    const result = resolveBrandingLayers({
+      fromDb: { contact: { whatsapp_message_default: "Olá {price}" } },
+      fromFile: validFileBranding,
+    });
+    expect(result.contact.whatsapp_message_default).toBe("Olá {price}");
+  });
+});
+
 describe("branding.config.json no disco", () => {
   const configPath = join(process.cwd(), "branding.config.json");
   const readConfig = () =>
