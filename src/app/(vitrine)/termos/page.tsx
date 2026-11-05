@@ -3,6 +3,7 @@ import { LegalArticle } from "@/components/legal/legal-article";
 import { copyPtBr } from "@/lib/copy/pt-br";
 import { resolveLegalPage } from "@/lib/legal/resolve-legal";
 import { resolveBranding } from "@/lib/branding/resolve-branding";
+import { storeOgImages } from "@/lib/seo/og-image";
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await resolveBranding();
@@ -10,6 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description: `${title} — ${branding.store.name}`,
+    openGraph: { title, images: storeOgImages(branding, title) },
   };
 }
 

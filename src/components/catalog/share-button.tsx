@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { copyPtBr } from "@/lib/copy/pt-br";
@@ -54,5 +55,21 @@ export function ShareButton({ url, title }: ShareButtonProps) {
       <Share2 className="size-4" aria-hidden />
       {copyPtBr.share.share}
     </button>
+  );
+}
+
+function CurrentUrlShareInner({ siteUrl, title }: { siteUrl: string; title: string }) {
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  return <ShareButton url={`${siteUrl}${pathname}${search ? `?${search}` : ""}`} title={title} />;
+}
+
+// Compartilha a URL atual com filtros e ordenação. Suspense evita que useSearchParams
+// mude a renderização da página que hospeda o botão.
+export function CurrentUrlShareButton(props: { siteUrl: string; title: string }) {
+  return (
+    <Suspense fallback={null}>
+      <CurrentUrlShareInner {...props} />
+    </Suspense>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from "@/lib/catalog/query-product-by-slug";
 import { resolveBranding } from "@/lib/branding/resolve-branding";
 import { copyPtBr } from "@/lib/copy/pt-br";
+import { productOgImages, storeOgImages } from "@/lib/seo/og-image";
 
 // Catálogo não pode ficar estático no deploy.
 export const dynamic = "force-dynamic";
@@ -71,31 +72,27 @@ export async function generateMetadata({
     return { title: copyPtBr.catalog.collectionTitle };
   }
 
-  const product = await queryProductBySlug(slug);
+  const branding = await resolveBranding();
+  let product: Awaited<ReturnType<typeof queryProductBySlug>>;
+  try {
+    product = await queryProductBySlug(slug);
+  } catch (error) {
+    console.error("[produto] Falha ao ler produto para metadados.", error);
+    return {
+      title: copyPtBr.catalog.collectionTitle,
+      openGraph: { images: storeOgImages(branding, branding.store.name) },
+    };
+  }
   if (!product) {
     return { title: copyPtBr.catalog.collectionTitle };
   }
 
-  const cover = product.gallery[0];
-  const ogImage = cover?.ogUrl ?? cover?.detailUrl;
-
-  const openGraph: Metadata["openGraph"] = {
-    title: product.name,
-    images: ogImage
-      ? [
-          {
-            url: ogImage,
-            width: 1200,
-            height: 630,
-            alt: product.name,
-          },
-        ]
-      : undefined,
-  };
-
   return {
     title: product.name,
-    openGraph,
+    openGraph: {
+      title: product.name,
+      images: productOgImages(product, branding),
+    },
   };
 }
 

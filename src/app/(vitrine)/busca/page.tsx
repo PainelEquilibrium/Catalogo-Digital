@@ -8,15 +8,25 @@ import { ProductGridWithLoadMore } from "@/app/(vitrine)/colecao/[slug]/_compone
 import { resolveBranding } from "@/lib/branding/resolve-branding";
 import { copyPtBr } from "@/lib/copy/pt-br";
 import { queryProducts } from "@/lib/catalog/query-products";
+import { storeOgImages } from "@/lib/seo/og-image";
+import { getSiteUrl } from "@/config/site";
+import { CurrentUrlShareButton } from "@/components/catalog/share-button";
 
 type SearchPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export const metadata: Metadata = {
-  title: copyPtBr.catalog.allProducts,
-  robots: { index: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await resolveBranding();
+  return {
+    title: copyPtBr.catalog.allProducts,
+    robots: { index: false },
+    openGraph: {
+      title: copyPtBr.catalog.allProducts,
+      images: storeOgImages(branding, branding.store.name),
+    },
+  };
+}
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q, ordenar } = await searchParams;
@@ -38,11 +48,17 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
-      <h1 className="font-heading text-3xl font-medium tracking-tight text-[var(--color-text)] sm:text-4xl">
-        {catalogQuery.q
-          ? copyPtBr.catalog.searchResults(catalogQuery.q)
-          : copyPtBr.catalog.allProducts}
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="font-heading text-3xl font-medium tracking-tight text-[var(--color-text)] sm:text-4xl">
+          {catalogQuery.q
+            ? copyPtBr.catalog.searchResults(catalogQuery.q)
+            : copyPtBr.catalog.allProducts}
+        </h1>
+        <CurrentUrlShareButton
+          siteUrl={getSiteUrl()}
+          title={copyPtBr.catalog.allProducts}
+        />
+      </div>
 
       <FilterBar
         basePath="/busca"

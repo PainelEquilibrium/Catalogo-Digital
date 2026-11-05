@@ -16,6 +16,9 @@ import { copyPtBr } from "@/lib/copy/pt-br";
 import { isValidCollectionSlug } from "@/lib/catalog/collection-slug";
 import { queryCategoryBySlug } from "@/lib/catalog/query-categories";
 import { queryProducts } from "@/lib/catalog/query-products";
+import { categoryOgImages, storeOgImages } from "@/lib/seo/og-image";
+import { getSiteUrl } from "@/config/site";
+import { CurrentUrlShareButton } from "@/components/catalog/share-button";
 
 type CollectionPageProps = {
   params: Promise<{ slug: string }>;
@@ -61,26 +64,27 @@ export async function generateMetadata({
     return { title: copyPtBr.catalog.collectionTitle };
   }
 
-  const category = await queryCategoryBySlug(slug);
+  let category: Awaited<ReturnType<typeof queryCategoryBySlug>>;
+  try {
+    category = await queryCategoryBySlug(slug);
+  } catch (error) {
+    console.error("[colecao] Falha ao ler categoria para metadados.", error);
+    return {
+      title: copyPtBr.catalog.collectionTitle,
+      openGraph: { images: storeOgImages(branding, branding.store.name) },
+    };
+  }
   if (!category) {
     return { title: copyPtBr.catalog.collectionTitle };
   }
 
-  const ogImage = category.coverImageUrl ?? branding.share.og_image;
-
+  // Não lê searchParams: com ou sem filtros a miniatura é a mesma.
   return {
     title: category.name,
     openGraph: {
       title: category.name,
       description: branding.store.tagline,
-      images: [
-        {
-          url: ogImage,
-          width: 1200,
-          height: 630,
-          alt: category.name,
-        },
-      ],
+      images: categoryOgImages(category, branding),
     },
   };
 }
@@ -127,9 +131,12 @@ export default async function CollectionPage({
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
       <header className="flex flex-col gap-2">
-        <h1 className="font-heading text-3xl font-medium tracking-tight text-[var(--color-text)] sm:text-4xl">
-          {category.name}
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="font-heading text-3xl font-medium tracking-tight text-[var(--color-text)] sm:text-4xl">
+            {category.name}
+          </h1>
+          <CurrentUrlShareButton siteUrl={getSiteUrl()} title={category.name} />
+        </div>
         {category.description ? (
           <p className="max-w-2xl text-base text-[color-mix(in_srgb,var(--color-text)_75%,transparent)]">
             {category.description}

@@ -6,7 +6,9 @@ import { resolveBranding } from "@/lib/branding/resolve-branding";
 import { AnalyticsRoot } from "@/components/analytics/analytics-root";
 import { ConsentDefaultScript } from "@/components/analytics/consent-default-script";
 import { Toaster } from "@/components/ui/sonner";
+import { getSiteUrl } from "@/config/site";
 import { copyPtBr } from "@/lib/copy/pt-br";
+import { storeOgImages } from "@/lib/seo/og-image";
 import "./globals.css";
 
 // Fontes da marca Equilibrium (public/fonts). Helvetica = títulos (h1);
@@ -54,11 +56,16 @@ function brandingVarsToCss(
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await resolveBranding();
   return {
+    metadataBase: new URL(getSiteUrl()),
     title: {
       default: branding.store.name,
       template: `%s | ${branding.store.name}`,
     },
     description: branding.store.tagline,
+    openGraph: {
+      siteName: branding.store.name,
+      images: storeOgImages(branding, branding.store.name),
+    },
     icons: {
       // Favicon acompanha o tema do sistema operacional (prefers-color-scheme).
       icon: [

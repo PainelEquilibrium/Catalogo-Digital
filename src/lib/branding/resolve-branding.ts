@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { cache } from "react";
 import { resolveBrandingLayers, type Branding } from "@/domain/branding";
 import { prisma } from "@/lib/prisma/client";
 
@@ -26,7 +27,8 @@ function rowsToBrandingDb(rows: { key: string; value: unknown }[]): Record<strin
   return fromDb;
 }
 
-export async function resolveBranding(): Promise<Branding> {
+// cache: layout, metadata e página leem a marca na mesma requisição; uma leitura só.
+export const resolveBranding = cache(async (): Promise<Branding> => {
   const fromFile = loadBrandingConfigFile();
 
   try {
@@ -39,4 +41,4 @@ export async function resolveBranding(): Promise<Branding> {
     );
     return resolveBrandingLayers({ fromDb: {}, fromFile });
   }
-}
+});

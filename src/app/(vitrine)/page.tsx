@@ -9,6 +9,7 @@ import { ProductCard as CatalogProductCard } from "@/components/catalog/product-
 import { resolveBranding } from "@/lib/branding/resolve-branding";
 import { queryActiveCategories } from "@/lib/catalog/query-categories";
 import { queryHomeRails } from "@/lib/catalog/query-products";
+import { storeOgImages } from "@/lib/seo/og-image";
 
 // Catálogo não pode ficar estático no deploy.
 export const dynamic = "force-dynamic";
@@ -21,14 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: branding.store.name,
       description: branding.store.tagline,
-      images: [
-        {
-          url: branding.share.og_image,
-          width: 1200,
-          height: 630,
-          alt: branding.store.name,
-        },
-      ],
+      images: storeOgImages(branding, branding.store.name),
     },
   };
 }
