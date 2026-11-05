@@ -20,6 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: branding.store.name,
     description: branding.store.tagline,
     openGraph: {
+      siteName: branding.store.name,
       title: branding.store.name,
       description: branding.store.tagline,
       images: storeOgImages(branding, branding.store.name),

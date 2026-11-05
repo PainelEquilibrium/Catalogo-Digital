@@ -80,7 +80,7 @@ export async function generateMetadata({
     console.error("[produto] Falha ao ler produto para metadados.", error);
     return {
       title: copyPtBr.catalog.collectionTitle,
-      openGraph: { images: storeOgImages(branding, branding.store.name) },
+      openGraph: { siteName: branding.store.name, images: storeOgImages(branding, branding.store.name) },
     };
   }
   if (!product) {
@@ -90,6 +90,7 @@ export async function generateMetadata({
   return {
     title: product.name,
     openGraph: {
+      siteName: branding.store.name,
       title: product.name,
       images: productOgImages(product, branding),
     },

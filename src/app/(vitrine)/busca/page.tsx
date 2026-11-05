@@ -22,6 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: copyPtBr.catalog.allProducts,
     robots: { index: false },
     openGraph: {
+      siteName: branding.store.name,
       title: copyPtBr.catalog.allProducts,
       images: storeOgImages(branding, branding.store.name),
     },

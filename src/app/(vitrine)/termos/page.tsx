@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description: `${title} — ${branding.store.name}`,
-    openGraph: { title, images: storeOgImages(branding, title) },
+    openGraph: { siteName: branding.store.name, title, images: storeOgImages(branding, title) },
   };
 }
 

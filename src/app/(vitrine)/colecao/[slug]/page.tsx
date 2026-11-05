@@ -71,7 +71,7 @@ export async function generateMetadata({
     console.error("[colecao] Falha ao ler categoria para metadados.", error);
     return {
       title: copyPtBr.catalog.collectionTitle,
-      openGraph: { images: storeOgImages(branding, branding.store.name) },
+      openGraph: { siteName: branding.store.name, images: storeOgImages(branding, branding.store.name) },
     };
   }
   if (!category) {
@@ -82,6 +82,7 @@ export async function generateMetadata({
   return {
     title: category.name,
     openGraph: {
+      siteName: branding.store.name,
       title: category.name,
       description: branding.store.tagline,
       images: categoryOgImages(category, branding),

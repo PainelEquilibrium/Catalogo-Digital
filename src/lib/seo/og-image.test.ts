@@ -47,3 +47,15 @@ describe("og-image", () => {
     expect(categoryOgImages({ name: "Peça", coverOgUrl: "https://cdn.example/c-og.webp" }, branding)).toEqual(logo);
   });
 });
+
+describe("og-image: JPG e siteName", () => {
+  it("/a.webp?x=.jpg não passa como JPG", () => {
+    const gallery = [{ ogUrl: "https://cdn.example/a.webp?x=.jpg" }];
+    expect(productOgImages({ name: "Peça", gallery }, branding)).toEqual(logo);
+  });
+
+  it("logo da marca em .webp cai no padrão local", () => {
+    const webp = { share: { og_image: "https://cdn.example/logo.webp" } } as Branding;
+    expect(storeOgImages(webp, "Peça")).toEqual(logo);
+  });
+});
