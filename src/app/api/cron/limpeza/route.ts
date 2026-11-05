@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { pruneOldAudit, purgeExpiredTrash } from "@/lib/maintenance/purge-trash";
 import { drainStorageDeletions } from "@/lib/maintenance/storage-queue";
+import { runOrphanSweep } from "@/lib/maintenance/sweep-orphans";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,13 @@ export async function GET(request: Request) {
     failed = true;
     console.error("Cron step failed", { step: "drain" });
   }
-  // Task 11: etapa de varredura entra aqui, antes da poda.
+  // Varredura abortada é estado seguro (nada apagado): 200 com aborted, e o erro já foi logado.
+  try {
+    body.orphans = await runOrphanSweep(now);
+  } catch {
+    failed = true;
+    console.error("Cron step failed", { step: "sweep" });
+  }
   try {
     body.auditPruned = await pruneOldAudit(now);
   } catch {

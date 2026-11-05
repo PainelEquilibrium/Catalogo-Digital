@@ -3,11 +3,11 @@ import { createServerSupabase } from "@/lib/auth/server";
 import { getSupabasePublicConfig } from "@/lib/auth/supabase-env";
 import { processImageBuffer } from "./process-image-buffer";
 
-const ORIGINAL_BUCKET = "product-images";
-const VARIANT_BUCKET = "product-image-variants";
-const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
-const ORIGINAL_PATH = new RegExp(`^originals/(${UUID})/(${UUID})$`, "i");
-const VARIANT_PATH = new RegExp(`^variants/${UUID}/${UUID}-(?:(?:thumb|card|detail|og)\\.webp|og\\.jpg)$`, "i");
+export const ORIGINAL_BUCKET = "product-images";
+export const VARIANT_BUCKET = "product-image-variants";
+export const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+export const ORIGINAL_PATH = new RegExp(`^originals/(${UUID})/(${UUID})$`, "i");
+export const VARIANT_PATH = new RegExp(`^variants/(${UUID})/(${UUID})-(?:(?:thumb|card|detail|og)\\.webp|og\\.jpg)$`, "i");
 const VARIANTS = ["thumb", "card", "detail", "og"] as const;
 export type StorageObjectRef = { bucket: typeof ORIGINAL_BUCKET | typeof VARIANT_BUCKET; path: string };
 type StorageClient = Awaited<ReturnType<typeof createServerSupabase>>;
