@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { prisma } from "@/lib/prisma/client";
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
@@ -38,5 +39,32 @@ describe("resolveLegalPage", () => {
 
     expect(markdown).toContain("Conteúdo indisponível");
     expect(markdown.length).toBeGreaterThan(0);
+  });
+
+  it("legais vazios caem no padrão", async () => {
+    vi.mocked(readFileSync).mockReturnValue("Padrão de [nome da loja]");
+    vi.mocked(prisma.storeSetting.findMany).mockResolvedValueOnce([
+      { key: "legal", value: { termos: "   " } },
+    ] as never);
+
+    const { resolveLegalPage } = await import("@/lib/legal/resolve-legal");
+    expect(await resolveLegalPage("termos")).toBe("Padrão de Loja Teste");
+  });
+
+  it("texto salvo substitui o padrão", async () => {
+    vi.mocked(prisma.storeSetting.findMany).mockResolvedValueOnce([
+      { key: "legal", value: { termos: "Meus termos" } },
+    ] as never);
+
+    const { resolveLegalPage } = await import("@/lib/legal/resolve-legal");
+    expect(await resolveLegalPage("termos")).toBe("Meus termos");
+  });
+
+  it("termos padrão citam o acesso de suporte técnico", async () => {
+    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    vi.mocked(readFileSync).mockImplementation(actual.readFileSync);
+
+    const { resolveLegalPage } = await import("@/lib/legal/resolve-legal");
+    expect(await resolveLegalPage("termos")).toMatch(/suporte técnico/i);
   });
 });

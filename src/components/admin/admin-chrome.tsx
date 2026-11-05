@@ -24,6 +24,7 @@ const navItems = [
   { href: "/admin/categorias", label: copyAdminPtBr.chrome.categories },
   { href: "/admin/lixeira", label: copyAdminPtBr.chrome.trash },
   { href: "/admin/usuarios", label: copyAdminPtBr.chrome.people, action: "people" },
+  { href: "/admin/configuracoes", label: copyAdminPtBr.chrome.settings, action: "settings" },
   { href: "/admin/auditoria", label: copyAdminPtBr.chrome.audit, action: "audit" },
 ] as { href: string; label: string; action?: StaffAction }[];
 

@@ -22,6 +22,10 @@ Marcas, textos, fotos e layout pertencem à **[nome da loja]** ou a seus licenci
 
 O catálogo é fornecido “como está”. A loja envidará esforços razoáveis para manter o site disponível, sem garantir ausência total de falhas ou interrupções.
 
+## Suporte técnico
+
+A Equilibrium Tecnologia, que fornece e mantém a plataforma, possui uma conta de acesso restrito ao painel administrativo, usada somente para suporte técnico. As ações dessa conta ficam registradas no histórico de auditoria da loja.
+
 ## Alterações
 
 Podemos atualizar estes Termos. O uso continuado do site após a publicação de alterações constitui aceitação da versão vigente.
