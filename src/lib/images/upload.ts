@@ -64,12 +64,14 @@ async function uploadObject(
   }
 }
 
+export function isValidStorageRef(object: { bucket: string; path: string }): boolean {
+  return (object.bucket === ORIGINAL_BUCKET && ORIGINAL_PATH.test(object.path)) ||
+    ([ORIGINAL_BUCKET, VARIANT_BUCKET].includes(object.bucket) && VARIANT_PATH.test(object.path));
+}
+
 async function removeObjects(supabase: StorageClient, objects: StorageObjectRef[]): Promise<void> {
   for (const object of objects) {
-    if (!(object.bucket === ORIGINAL_BUCKET && ORIGINAL_PATH.test(object.path)) &&
-      !([ORIGINAL_BUCKET, VARIANT_BUCKET].includes(object.bucket) && VARIANT_PATH.test(object.path))) {
-      throw new Error("Invalid image storage reference");
-    }
+    if (!isValidStorageRef(object)) throw new Error("Invalid image storage reference");
   }
   const results = await Promise.allSettled([ORIGINAL_BUCKET, VARIANT_BUCKET].map(async (bucket) => {
     const paths = objects.filter((object) => object.bucket === bucket).map((object) => object.path);

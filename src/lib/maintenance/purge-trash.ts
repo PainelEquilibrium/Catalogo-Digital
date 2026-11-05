@@ -6,8 +6,6 @@ import { drainStorageDeletions, enqueueStorageDeletions } from "./storage-queue"
 
 export const TRASH_RETENTION_DAYS = 30;
 const DAY_MS = 86_400_000;
-// Um upsert por objeto na fila; com latência remota o padrão de 5 s estoura.
-const TX_OPTIONS = { timeout: 30_000 };
 
 export function daysUntilPurge(deletedAt: Date, now: Date): number {
   const elapsed = Math.floor((now.getTime() - deletedAt.getTime()) / DAY_MS);
@@ -51,7 +49,7 @@ export async function purgeProduct(id: string, actor: AuditActor): Promise<"purg
         entityType: "product", entityId: id, entityLabel: product.name, action: "purge",
         before: { name: product.name, slug: product.slug, deletedAt: product.deletedAt },
       });
-    }, TX_OPTIONS);
+    });
   } catch (error) {
     if (error instanceof NotInTrash) return "not_in_trash";
     throw error;
@@ -80,7 +78,7 @@ export async function purgeCategory(id: string, actor: AuditActor): Promise<"pur
         before: { name: category.name, slug: category.slug, deletedAt: category.deletedAt },
       });
       return "purged" as const;
-    }, TX_OPTIONS);
+    });
     if (outcome === "has_products") return outcome;
   } catch (error) {
     if (error instanceof NotInTrash) return "not_in_trash";
