@@ -54,14 +54,16 @@ export async function uploadBrandAsset(processed: { webp: Buffer; ogJpeg?: Buffe
   return { webpUrl: publicObjectUrl(files[0].path), ogUrl: files[1] && publicObjectUrl(files[1].path) };
 }
 
-const STORE_ASSET_URL = new RegExp(`/storage/v1/object/public/${VARIANT_BUCKET}/(variants/${STORE_ASSET_ENTITY_ID}/${UUID}-(?:detail\.webp|og\.jpg))$`, "i");
+const STORE_ASSET_PATH = new RegExp(`^variants/${STORE_ASSET_ENTITY_ID}/${UUID}-(?:detail\\.webp|og\\.jpg)$`, "i");
 
 // Objetos de loja citados em qualquer string do valor. Caminhos locais, URLs externas e fotos de produto não entram.
 export function storeAssetRefsIn(value: unknown): StorageObjectRef[] {
   if (typeof value === "string") {
-    const path = STORE_ASSET_URL.exec(value)?.[1];
-    const ref = { bucket: VARIANT_BUCKET, path: path ?? "" } as StorageObjectRef;
-    return path && isValidStorageRef(ref) ? [ref] : [];
+    // Só URLs públicas do bucket deste projeto Supabase; o mesmo caminho em outro host não conta.
+    const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "unset:"}/storage/v1/object/public/${VARIANT_BUCKET}/`;
+    const path = value.startsWith(prefix) ? value.slice(prefix.length) : "";
+    const ref = { bucket: VARIANT_BUCKET, path } as StorageObjectRef;
+    return STORE_ASSET_PATH.test(path) && isValidStorageRef(ref) ? [ref] : [];
   }
   if (Array.isArray(value)) return value.flatMap(storeAssetRefsIn);
   if (value && typeof value === "object") return Object.values(value).flatMap(storeAssetRefsIn);

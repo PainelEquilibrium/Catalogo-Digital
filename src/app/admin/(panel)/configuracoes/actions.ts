@@ -109,7 +109,7 @@ export async function restoreSettingsSection(section: SettingsSection): Promise<
     async (tx, _userId, before) => {
       await tx.storeSetting.deleteMany({ where: { key: { in: sectionKeys[section] } } });
       const refs = storeAssetRefsIn(before);
-      if (section === "store") refs.push(...(await dropShareImage(tx)));
+      if (section === "store") refs.push(...(await dropShareImage(tx, before)));
       await enqueueStorageDeletions(tx, refs);
       return refs;
     },
@@ -118,11 +118,12 @@ export async function restoreSettingsSection(section: SettingsSection): Promise<
 }
 
 // O OG do logo mora em share.og_image; ao restaurar a loja ele volta ao padrão (só se for arquivo enviado).
-async function dropShareImage(tx: Prisma.TransactionClient): Promise<StorageObjectRef[]> {
+async function dropShareImage(tx: Prisma.TransactionClient, before: Record<string, unknown>): Promise<StorageObjectRef[]> {
   const row = await tx.storeSetting.findUnique({ where: { key: "share" } });
   const { og_image, ...rest } = (row?.value ?? {}) as Record<string, unknown>;
   const refs = storeAssetRefsIn(og_image);
   if (!refs.length) return [];
+  before.share = row?.value; // entra na auditoria da restauração
   if (Object.keys(rest).length) await tx.storeSetting.update({ where: { key: "share" }, data: { value: rest as Prisma.InputJsonValue } });
   else await tx.storeSetting.delete({ where: { key: "share" } });
   return refs;

@@ -23,7 +23,13 @@ export default async function AdminSettingsPage() {
   const legalRow = await prisma.storeSetting.findUnique({ where: { key: "legal" } });
   const legal = (legalRow?.value ?? {}) as Record<string, string>;
   // key remonta o formulário quando o valor salvo muda (salvar ou restaurar).
-  const version = JSON.stringify([branding, legal]);
+  // Arquivos enviados ficam fora da chave: trocar logo não remonta o formulário nem apaga texto digitado.
+  const textOnly = {
+    ...branding,
+    store: { name: branding.store.name, tagline: branding.store.tagline },
+    hero: { ...branding.hero, image_url: "" },
+  };
+  const version = JSON.stringify([textOnly, legal]);
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { processBrandAsset, STORE_ASSET_ENTITY_ID, storeAssetRefsIn } from "./brand-asset";
 
 const U = "11111111-1111-4111-8111-111111111111";
@@ -39,6 +39,18 @@ describe("processBrandAsset", () => {
 });
 
 describe("storeAssetRefsIn", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://x.supabase.co");
+  });
+
+  it("o mesmo caminho em outro host, ou com ponto trocado por outro caractere, é rejeitado", () => {
+    const tail = `storage/v1/object/public/product-image-variants/variants/${STORE_ASSET_ENTITY_ID}/${U}`;
+    expect(storeAssetRefsIn(`https://evil.example.com/${tail}-detail.webp`)).toEqual([]);
+    expect(storeAssetRefsIn(`https://x.supabase.co/${tail}-detailXwebp`)).toEqual([]);
+    expect(storeAssetRefsIn(`https://x.supabase.co/${tail}-detail.webp?x=1`)).toEqual([]);
+    expect(storeAssetRefsIn(`https://x.supabase.co/${tail}-detail.webp`)).toHaveLength(1);
+  });
+
   it("só reconhece arquivos de loja no bucket público; locais e fotos de produto ficam de fora", () => {
     const own = `${base}/variants/${STORE_ASSET_ENTITY_ID}/${U}-detail.webp`;
     const og = `${base}/variants/${STORE_ASSET_ENTITY_ID}/${U}-og.jpg`;

@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { saveStoreAsset } from "@/app/admin/(panel)/configuracoes/actions";
@@ -12,12 +11,11 @@ const copy = copyAdminPtBr.settings;
 
 type Kind = Parameters<typeof saveStoreAsset>[0];
 
-// Envia na hora (não depende do botão Salvar da seção); o texto digitado continua intacto.
+// Envia na hora (não depende do botão Salvar). Sem router.refresh: o revalidatePath da action atualiza `src`
+// e a chave do formulário ignora arquivos, então o texto ainda não salvo continua no campo.
 export function AssetUpload({ kind, label, src, dark }: { kind: Kind; label: string; src: string; dark?: boolean }) {
-  const router = useRouter();
   const id = useId();
   const [busy, setBusy] = useState(false);
-  const [shown, setShown] = useState(src);
 
   async function onChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -37,16 +35,14 @@ export function AssetUpload({ kind, label, src, dark }: { kind: Kind; label: str
       toast.error(result.message);
       return;
     }
-    setShown(result.url);
     toast.success(copy.assetSaved);
-    router.refresh();
   }
 
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       <div className={`relative h-24 w-48 overflow-hidden rounded-md border border-border ${dark ? "bg-neutral-800" : "bg-muted"}`}>
-        <Image src={shown} alt="" fill unoptimized className="object-contain p-2" sizes="192px" />
+        <Image src={src} alt="" fill unoptimized className="object-contain p-2" sizes="192px" />
       </div>
       <input
         id={id}

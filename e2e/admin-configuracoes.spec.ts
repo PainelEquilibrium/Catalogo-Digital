@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { test, expect, type Page } from "@playwright/test";
 import sharp from "sharp";
@@ -183,10 +184,13 @@ test("logo e hero enviados aparecem na vitrine; o anterior sai do bucket; restau
   expect((await page.request.get(first)).status()).toBe(200);
   expect((await page.request.get(firstOg)).headers()["content-type"]).toContain("image/jpeg");
 
+  // Texto digitado e não salvo sobrevive ao envio do arquivo.
+  await store.getByLabel(copy.storeName).fill(`${storeName}-rascunho`);
   await upload(copy.logoLight, await png(300, "#0000ff"));
   await expect.poll(async () => (await settingValue("store")).logo.light, { timeout: 60_000 }).not.toBe(first);
   const second = (await settingValue("store")).logo.light as string;
   const secondOg = (await settingValue("share")).og_image as string;
+  await expect(store.getByLabel(copy.storeName)).toHaveValue(`${storeName}-rascunho`);
   // O logo anterior e o OG anterior saem do bucket e da fila.
   await expect.poll(storeObjects, { timeout: 60_000 }).toEqual([objectName(second), objectName(secondOg)].sort());
   expect((await db.query("select 1 from storage_deletions where path like $1", [`${STORE_ASSETS}%`])).rowCount).toBe(0);
@@ -221,4 +225,17 @@ test("logo e hero enviados aparecem na vitrine; o anterior sai do bucket; restau
   expect(await settingValue("hero")).toBeUndefined();
   await page.goto("/");
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /og-padrao\.jpg$/);
+});
+
+test("foto real acima de 1 MB é aceita pelo upload (limite de corpo da Server Action)", async ({ page }) => {
+  test.setTimeout(120_000);
+  const noise = await sharp(randomBytes(1000 * 1000 * 3), { raw: { width: 1000, height: 1000, channels: 3 } }).png().toBuffer();
+  expect(noise.length).toBeGreaterThan(2 * 1024 * 1024);
+  await login(page, owner);
+  await page.goto("/admin/configuracoes");
+  await page.waitForLoadState("networkidle");
+  await section(page, copy.sectionLabels.home).getByLabel(copy.heroImage).setInputFiles({ name: "grande.png", mimeType: "image/png", buffer: noise });
+  await expect.poll(async () => (await settingValue("hero"))?.image_url, { timeout: 60_000 }).toContain("/product-image-variants/");
+  await section(page, copy.sectionLabels.home).getByRole("button", { name: copy.restore }).click();
+  await expect.poll(storeObjects, { timeout: 60_000 }).toEqual([]);
 });

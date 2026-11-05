@@ -16,6 +16,7 @@ import { restoreSettingsSection, saveSettingsSection } from "./actions";
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://x.supabase.co");
 });
 
 describe("ações de configurações", () => {
@@ -84,5 +85,6 @@ describe("ações de configurações", () => {
     expect(tx.storeSetting.delete).toHaveBeenCalledWith({ where: { key: "share" } });
     expect(m.drain).toHaveBeenCalledWith(expect.objectContaining({ paths: queued }));
     expect(tx.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(tx.auditLog.create.mock.calls[0][0].data.before).toMatchObject({ share: { og_image: og } });
   });
 });
